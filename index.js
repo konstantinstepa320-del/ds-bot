@@ -14,11 +14,20 @@ const {
 
 // ================= НАСТРОЙКИ =================
 const APPLY_CHANNEL_ID = "1469158146500198645";
-const STAFF_ROLE = "Hight"; // ← ТОЛЬКО ЭТА РОЛЬ МОЖЕТ ЖАТЬ КНОПКИ
+
+const STAFF_ROLES = [
+  "leader",
+  "Батя",
+  "Сусанин",
+  "Горячая Чикса",
+  "Moder",
+  "Coller",
+  "HR",
+  "Hight"
+];
+
 const ROLE_1 = "DaSouza";
 const ROLE_2 = "Test";
-
-const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
 // ============================================
 
 
@@ -32,9 +41,9 @@ const client = new Client({
 });
 
 
-// ===== ПРОВЕРКА РОЛИ =====
+// ===== ПРОВЕРКА ДОСТУПА =====
 function hasAccess(member) {
-  return member.roles.cache.some(r => r.name === STAFF_ROLE);
+  return member.roles.cache.some(r => STAFF_ROLES.includes(r.name));
 }
 
 
@@ -49,17 +58,13 @@ client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (message.content !== '!заявка') return;
 
-  const embed = new EmbedBuilder()
-    .setColor('DarkRed')
-    .setTitle('Подать заявку');
-
   const btn = new ButtonBuilder()
     .setCustomId('apply')
     .setLabel('Подать заявку')
     .setStyle(ButtonStyle.Primary);
 
   await message.channel.send({
-    embeds: [embed],
+    content: 'Нажми кнопку чтобы подать заявку',
     components: [new ActionRowBuilder().addComponents(btn)]
   });
 });
@@ -70,6 +75,7 @@ client.on('interactionCreate', async interaction => {
 
   // ===== открыть форму =====
   if (interaction.isButton() && interaction.customId === 'apply') {
+
     const modal = new ModalBuilder()
       .setCustomId('applyModal')
       .setTitle('Заявка');
@@ -125,7 +131,7 @@ client.on('interactionCreate', async interaction => {
   }
 
 
-  // ===== ВСЕ КНОПКИ ТОЛЬКО ДЛЯ Hight =====
+  // ===== ВСЕ КНОПКИ ТОЛЬКО ДЛЯ СТАФФА =====
   if (interaction.isButton() &&
       (interaction.customId.startsWith('watch_') ||
        interaction.customId.startsWith('call_') ||
@@ -142,36 +148,17 @@ client.on('interactionCreate', async interaction => {
 
 
   // ===== действия =====
-  if (interaction.isButton() && interaction.customId.startsWith('watch_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-    await member.send('👀 Заявка на рассмотрении');
-    return interaction.reply({ content: 'Готово', flags: MessageFlags.Ephemeral });
-  }
+  if (interaction.customId.startsWith('watch_'))
+    return interaction.reply({ content: '👀 Взято на рассмотрение', flags: MessageFlags.Ephemeral });
 
-  if (interaction.isButton() && interaction.customId.startsWith('call_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-    await member.send('📞 Вас вызывают на обзвон');
-    return interaction.reply({ content: 'Готово', flags: MessageFlags.Ephemeral });
-  }
+  if (interaction.customId.startsWith('call_'))
+    return interaction.reply({ content: '📞 Вызван на обзвон', flags: MessageFlags.Ephemeral });
 
-  if (interaction.isButton() && interaction.customId.startsWith('accept_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-
-    const role1 = interaction.guild.roles.cache.find(r => r.name === ROLE_1);
-    const role2 = interaction.guild.roles.cache.find(r => r.name === ROLE_2);
-
-    if (role1) await member.roles.add(role1);
-    if (role2) await member.roles.add(role2);
-
+  if (interaction.customId.startsWith('accept_'))
     return interaction.update({ content: '✅ Принято', components: [] });
-  }
 
-  if (interaction.isButton() && interaction.customId.startsWith('reject_')) {
+  if (interaction.customId.startsWith('reject_'))
     return interaction.update({ content: '❌ Отклонено', components: [] });
-  }
 
 });
 

@@ -17,35 +17,34 @@ const fs = require('fs');
 
 // ================= НАСТРОЙКИ =================
 
-const APPLY_CHANNEL_ID = "1469158146500198645"; // канал заявок
-const POINTS_CHANNEL_ID = "1464632454697455737"; // канал логов баллов
+const APPLY_CHANNEL_ID = "1469158146500198645";
+const POINTS_CHANNEL_ID = "1464632454697455737";
+
+const STAFF_ROLES = ["High", "Helper", "Moder"];
 
 const ROLE_1 = "DaSouza";
 const ROLE_2 = "Test";
 
-// кто может принимать заявки
-const STAFF_ROLES = ["High", "Helper", "Moder"];
-
 const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
 
 
-// ================= БАЗА БАЛЛОВ =================
+// ================= БАЛЛЫ =================
 
-const DB_FILE = './points.json';
+const DB_FILE = "./points.json";
 
 let pointsDB = {};
 if (fs.existsSync(DB_FILE)) {
   pointsDB = JSON.parse(fs.readFileSync(DB_FILE));
 }
 
-function addPoints(userId, amount) {
-  if (!pointsDB[userId]) pointsDB[userId] = 0;
-  pointsDB[userId] += amount;
+function addPoints(id, amount) {
+  if (!pointsDB[id]) pointsDB[id] = 0;
+  pointsDB[id] += amount;
   fs.writeFileSync(DB_FILE, JSON.stringify(pointsDB, null, 2));
 }
 
-function getPoints(userId) {
-  return pointsDB[userId] || 0;
+function getPoints(id) {
+  return pointsDB[id] || 0;
 }
 
 
@@ -67,23 +66,25 @@ client.once('clientReady', () => {
 
 // ================= ПРОВЕРКА РОЛЕЙ =================
 
-function hasStaffRole(member) {
+function hasStaff(member) {
   return member.roles.cache.some(r => STAFF_ROLES.includes(r.name));
 }
 
 
-// ================= ЗАЯВКА КНОПКА =================
+// ================= КОМАНДЫ =================
 
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
+
+  // ===== ЗАЯВКА =====
   if (message.content === '!заявка') {
 
     const embed = new EmbedBuilder()
       .setColor('DarkRed')
       .setImage(IMAGE_URL)
-      .setTitle('👋 Путь в семью начинается здесь!')
-      .setDescription('👇 Нажми кнопку ниже, чтобы подать заявку');
+      .setTitle('👋 Подать заявку')
+      .setDescription('Нажми кнопку ниже');
 
     const btn = new ButtonBuilder()
       .setCustomId('apply')
@@ -97,25 +98,30 @@ client.on('messageCreate', async message => {
   }
 
 
-  // ===== повышение =====
+  // ===== ПОВЫШЕНИЕ =====
   if (message.content === '!повышение') {
+
+    const embed = new EmbedBuilder()
+      .setColor('Green')
+      .setImage(IMAGE_URL)
+      .setTitle('📈 Система повышения')
+      .setDescription('Нажми кнопку чтобы получить баллы');
 
     const btn = new ButtonBuilder()
       .setCustomId('points_menu')
-      .setLabel('📈 Открыть систему баллов')
+      .setLabel('Получить баллы')
       .setStyle(ButtonStyle.Success);
 
     message.channel.send({
-      content: '📊 Система повышения',
+      embeds: [embed],
       components: [new ActionRowBuilder().addComponents(btn)]
     });
   }
 
 
-  // ===== проверить баллы =====
+  // ===== МОИ БАЛЛЫ =====
   if (message.content === '!баллы') {
-    const pts = getPoints(message.author.id);
-    message.reply(`🏆 У тебя **${pts} баллов**`);
+    message.reply(`🏆 У тебя **${getPoints(message.author.id)} баллов**`);
   }
 
 });
@@ -125,7 +131,7 @@ client.on('messageCreate', async message => {
 
 client.on('interactionCreate', async interaction => {
 
-  // ===== открыть форму заявки =====
+  // ---------- ОТКРЫТЬ ФОРМУ ----------
   if (interaction.isButton() && interaction.customId === 'apply') {
 
     const modal = new ModalBuilder()
@@ -153,42 +159,42 @@ client.on('interactionCreate', async interaction => {
   }
 
 
-  // ===== отправка заявки =====
+  // ---------- ОТПРАВКА ЗАЯВКИ ----------
   if (interaction.isModalSubmit() && interaction.customId === 'applyModal') {
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const channel = await interaction.guild.channels.fetch(APPLY_CHANNEL_ID);
 
     const embed = new EmbedBuilder()
-      .setColor('DarkRed')
       .setTitle('📩 Новая заявка')
       .addFields(
-        { name: '👤 Пользователь', value: `${interaction.user}` },
+        { name: 'Пользователь', value: `${interaction.user}` },
         { name: 'Ник', value: interaction.fields.getTextInputValue('nick') },
         { name: 'Онлайн', value: interaction.fields.getTextInputValue('online') },
         { name: 'Семьи', value: interaction.fields.getTextInputValue('fam') },
         { name: 'Откуда узнал', value: interaction.fields.getTextInputValue('where') },
-        { name: 'Откат / спешик', value: interaction.fields.getTextInputValue('skills') }
+        { name: 'Навыки', value: interaction.fields.getTextInputValue('skills') }
       );
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`watch_${interaction.user.id}`).setLabel('👀 Смотрю').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`call_${interaction.user.id}`).setLabel('📞 Обзвон').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`reject_${interaction.user.id}`).setLabel('❌ Отклонить').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`watch_${interaction.user.id}`).setLabel('👀').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`call_${interaction.user.id}`).setLabel('📞').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel('✅').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`reject_${interaction.user.id}`).setLabel('❌').setStyle(ButtonStyle.Danger)
     );
 
     await channel.send({ embeds: [embed], components: [row] });
 
-    interaction.reply({ content: '✅ Заявка отправлена!', flags: MessageFlags.Ephemeral });
+    return interaction.editReply({ content: '✅ Заявка отправлена' });
   }
 
 
-  // ===== КНОПКИ ТОЛЬКО ДЛЯ STAFF =====
+  // ---------- STAFF CHECK ----------
   if (interaction.isButton() &&
-      ['watch_', 'call_', 'accept_', 'reject_']
-        .some(p => interaction.customId.startsWith(p))) {
+      ['watch_', 'call_', 'accept_', 'reject_'].some(x => interaction.customId.startsWith(x))) {
 
-    if (!hasStaffRole(interaction.member)) {
+    if (!hasStaff(interaction.member)) {
       return interaction.reply({
         content: '❌ У тебя нет доступа',
         flags: MessageFlags.Ephemeral
@@ -197,27 +203,22 @@ client.on('interactionCreate', async interaction => {
   }
 
 
-  // ===== смотрю =====
+  // ---------- СМОТРЮ ----------
   if (interaction.customId.startsWith('watch_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-
-    member.send('👀 Ваша заявка взята на рассмотрение');
-    return interaction.reply({ content: 'Готово', flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: '👀 Взято', flags: MessageFlags.Ephemeral });
   }
 
 
-  // ===== обзвон =====
+  // ---------- ОБЗВОН ----------
   if (interaction.customId.startsWith('call_')) {
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
-
-    member.send('📞 Вас вызывают на обзвон!');
-    return interaction.reply({ content: 'Готово', flags: MessageFlags.Ephemeral });
+    member.send('📞 Вас вызывают на обзвон');
+    return interaction.reply({ content: '📞 Вызван', flags: MessageFlags.Ephemeral });
   }
 
 
-  // ===== принять =====
+  // ---------- ПРИНЯТЬ ----------
   if (interaction.customId.startsWith('accept_')) {
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
@@ -228,12 +229,11 @@ client.on('interactionCreate', async interaction => {
     if (r1) await member.roles.add(r1);
     if (r2) await member.roles.add(r2);
 
-    member.send('🎉 Заявка принята');
     return interaction.update({ content: '✅ Принято', components: [] });
   }
 
 
-  // ===== отклонить =====
+  // ---------- ОТКЛОНИТЬ ----------
   if (interaction.customId.startsWith('reject_')) {
 
     const id = interaction.customId.split('_')[1];
@@ -255,11 +255,10 @@ client.on('interactionCreate', async interaction => {
     return interaction.showModal(modal);
   }
 
-
   if (interaction.isModalSubmit() && interaction.customId.startsWith('rejectReason_')) {
+
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
-
     const reason = interaction.fields.getTextInputValue('reason');
 
     member.send(`❌ Заявка отклонена\nПричина: ${reason}`);
@@ -268,31 +267,33 @@ client.on('interactionCreate', async interaction => {
   }
 
 
-  // ===== СИСТЕМА БАЛЛОВ =====
+  // ================= БАЛЛЫ =================
 
   if (interaction.isButton() && interaction.customId === 'points_menu') {
 
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
     const select = new StringSelectMenuBuilder()
       .setCustomId('points_select')
-      .setPlaceholder('Выбери действие')
       .addOptions([
-        { label: 'Трасса', value: '2' },
-        { label: 'Дроп', value: '3' },
-        { label: 'Капт', value: '4' },
-        { label: 'Тайник', value: '2' },
-        { label: 'Топ 1', value: '1' },
-        { label: 'МП', value: '3' },
-        { label: 'Снятие варна', value: '50' }
+        { label: 'Трасса (+2)', value: '2' },
+        { label: 'Дроп (+3)', value: '3' },
+        { label: 'Капт (+4)', value: '4' },
+        { label: 'Тайник (+2)', value: '2' },
+        { label: 'Топ 1 (+1)', value: '1' },
+        { label: 'МП (+3)', value: '3' },
+        { label: 'Снятие варна (+50)', value: '50' }
       ]);
 
-    return interaction.reply({
-      components: [new ActionRowBuilder().addComponents(select)],
-      flags: MessageFlags.Ephemeral
+    return interaction.editReply({
+      content: 'Выбери действие:',
+      components: [new ActionRowBuilder().addComponents(select)]
     });
   }
 
-
   if (interaction.isStringSelectMenu() && interaction.customId === 'points_select') {
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const amount = Number(interaction.values[0]);
 
@@ -300,14 +301,10 @@ client.on('interactionCreate', async interaction => {
 
     const total = getPoints(interaction.user.id);
 
-    const logChannel = await interaction.guild.channels.fetch(POINTS_CHANNEL_ID);
+    const log = await interaction.guild.channels.fetch(POINTS_CHANNEL_ID);
+    log.send(`📈 ${interaction.user.tag} +${amount} | Всего: ${total}`);
 
-    logChannel.send(`📈 ${interaction.user.tag} +${amount} | Всего: ${total}`);
-
-    return interaction.update({
-      content: `✅ Теперь у тебя ${total} баллов`,
-      components: []
-    });
+    return interaction.editReply({ content: `✅ Теперь у тебя ${total} баллов` });
   }
 
 });

@@ -14,25 +14,48 @@ const {
 const fs = require('fs');
 
 
-// ===== ТВОИ ID =====
-const LOG_CHANNEL = "1469477344161959957"; // проверки
-const STATS_CHANNEL = "1469478344772026409"; // мои баллы
+// ================= НАСТРОЙКИ =================
 
-const IMAGE =
-"https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
+// заявки
+const APPLY_CHANNEL_ID = "1469158146500198645";
+
+// проверка баллов (принять/отказать)
+const POINTS_REVIEW_CHANNEL_ID = "1469477344161959957";
+
+// панель повышения
+const UPGRADE_CHANNEL_ID = "1464632454697455737";
+
+// узнать свои баллы
+const POINTS_PANEL_CHANNEL_ID = "1469478344772026409";
+
+const ROLE_1 = "DaSouza";
+const ROLE_2 = "Test";
+
+const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
 
 
-// ===== БАЛЛЫ =====
-const DB = "./points.json";
-let db = fs.existsSync(DB) ? JSON.parse(fs.readFileSync(DB)) : {};
+// ================= БАЗА БАЛЛОВ =================
+const DB_FILE = "./points.json";
 
-const add = (id,n)=>{ if(!db[id])db[id]=0; db[id]+=n; fs.writeFileSync(DB,JSON.stringify(db)); }
-const get = id => db[id] || 0;
+let points = {};
+if (fs.existsSync(DB_FILE)) {
+  points = JSON.parse(fs.readFileSync(DB_FILE));
+}
+
+function addPoints(id, amount) {
+  if (!points[id]) points[id] = 0;
+  points[id] += amount;
+  fs.writeFileSync(DB_FILE, JSON.stringify(points, null, 2));
+}
+
+function getPoints(id) {
+  return points[id] || 0;
+}
 
 
-// ===== БОТ =====
+// ================= БОТ =================
 const client = new Client({
-  intents:[
+  intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
@@ -40,225 +63,162 @@ const client = new Client({
   ]
 });
 
-client.once('ready',()=>console.log('✅ Бот запущен'));
+
+client.once('ready', () => {
+  console.log(`✅ Бот запущен как ${client.user.tag}`);
+});
 
 
-// =================================================
-//                    КОМАНДЫ
-// =================================================
+// ======================================================
+//                     ЗАЯВКИ (ТВОЯ СИСТЕМА)
+// ======================================================
 
-client.on('messageCreate', async msg=>{
-  if(msg.author.bot) return;
+client.on('messageCreate', async message => {
+  if (message.author.bot) return;
 
+  if (message.content === '!заявка') {
 
-  // ===== ПАНЕЛЬ ЗАЯВКИ =====
-  if(msg.content==='!заявка'){
+    const embed = new EmbedBuilder()
+      .setColor('DarkRed')
+      .setImage(IMAGE_URL)
+      .setTitle('👋 Путь в семью начинается здесь!')
+      .setDescription('👇 Нажми кнопку ниже, чтобы подать заявку');
 
-    const embed=new EmbedBuilder()
-      .setImage(IMAGE)
-      .setTitle('📩 Подать заявку');
-
-    const btn=new ButtonBuilder()
+    const btn = new ButtonBuilder()
       .setCustomId('apply')
-      .setLabel('Подать')
+      .setLabel('Подать заявку')
       .setStyle(ButtonStyle.Primary);
 
-    msg.channel.send({
-      embeds:[embed],
-      components:[new ActionRowBuilder().addComponents(btn)]
+    await message.channel.send({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(btn)]
     });
   }
 
 
-  // ===== ПАНЕЛЬ ПОВЫШЕНИЯ =====
-  if(msg.content==='!повышение'){
+  // панель повышения
+  if (message.content === '!повышение') {
 
-    const embed=new EmbedBuilder()
-      .setImage(IMAGE)
-      .setTitle('📈 Система повышения')
-      .setDescription('Нажми нужную кнопку');
+    const embed = new EmbedBuilder()
+      .setColor('Gold')
+      .setImage(IMAGE_URL)
+      .setTitle('⭐ Система повышения')
+      .setDescription(
+`Выбери действие и отправь доказательства:
 
-    const row=new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('p_2').setLabel('🔐 Тайник +2').setStyle(ButtonStyle.Secondary),
+Тайник — 2  
+Дроп — 3  
+Капт — 4  
+Трасса — 2  
+МП — 3  
+Варн — -50`
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('p_2').setLabel('🧰 Тайник +2').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('p_3').setLabel('📦 Дроп +3').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('p_4').setLabel('⚔️ Капт +4').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('p_1').setLabel('🥇 Топ1 +1').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('p_-50').setLabel('❌ Варн -50').setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId('p_4').setLabel('⚔ Капт +4').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('p_warn').setLabel('⚠ Варн -50').setStyle(ButtonStyle.Danger)
     );
 
-    msg.channel.send({embeds:[embed],components:[row]});
+    await message.channel.send({ embeds: [embed], components: [row] });
   }
 
 
-  // ===== ПАНЕЛЬ БАЛЛОВ =====
-  if(msg.content==='!баллыпанель'){
+  // панель баллов
+  if (message.content === '!баллыпанель') {
 
-    const embed=new EmbedBuilder()
-      .setImage(IMAGE)
-      .setTitle('📊 Мои баллы');
+    const embed = new EmbedBuilder()
+      .setColor('Blue')
+      .setImage(IMAGE_URL)
+      .setTitle('📊 Проверка баллов');
 
-    const btn=new ButtonBuilder()
+    const btn = new ButtonBuilder()
       .setCustomId('my_points')
       .setLabel('Сколько у меня баллов')
-      .setStyle(ButtonStyle.Success);
+      .setStyle(ButtonStyle.Primary);
 
-    msg.channel.send({embeds:[embed],components:[new ActionRowBuilder().addComponents(btn)]});
+    await message.channel.send({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(btn)]
+    });
+  }
+});
+
+
+// ======================================================
+//                     ИНТЕРАКЦИИ
+// ======================================================
+
+client.on('interactionCreate', async interaction => {
+
+  // ---------- мои баллы ----------
+  if (interaction.isButton() && interaction.customId === 'my_points') {
+    return interaction.reply({
+      content: `📊 У тебя: ${getPoints(interaction.user.id)} баллов`,
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+
+  // ---------- отправка на проверку ----------
+  if (interaction.isButton() && interaction.customId.startsWith('p_')) {
+
+    let amount = 0;
+
+    if (interaction.customId === 'p_2') amount = 2;
+    if (interaction.customId === 'p_3') amount = 3;
+    if (interaction.customId === 'p_4') amount = 4;
+    if (interaction.customId === 'p_warn') amount = -50;
+
+    const channel = await interaction.guild.channels.fetch(POINTS_REVIEW_CHANNEL_ID);
+
+    const embed = new EmbedBuilder()
+      .setColor('Orange')
+      .setImage(IMAGE_URL)
+      .setTitle('📩 Запрос на баллы')
+      .setDescription(`${interaction.user} просит ${amount > 0 ? '+' : ''}${amount} баллов`);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`pa_${interaction.user.id}_${amount}`).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`pr_${interaction.user.id}`).setLabel('❌ Отказать').setStyle(ButtonStyle.Danger)
+    );
+
+    await channel.send({ embeds: [embed], components: [row] });
+
+    return interaction.reply({ content: '✅ Отправлено на проверку', flags: MessageFlags.Ephemeral });
+  }
+
+
+  // ---------- принять баллы ----------
+  if (interaction.isButton() && interaction.customId.startsWith('pa_')) {
+
+    const [_, id, amount] = interaction.customId.split('_');
+
+    addPoints(id, parseInt(amount));
+
+    const member = await interaction.guild.members.fetch(id);
+
+    await member.send(`🎉 Вам начислено ${amount} баллов\nТеперь у вас: ${getPoints(id)}`);
+
+    return interaction.update({ content: '✅ Принято', components: [] });
+  }
+
+
+  // ---------- отказ ----------
+  if (interaction.isButton() && interaction.customId.startsWith('pr_')) {
+
+    const id = interaction.customId.split('_')[1];
+    const member = await interaction.guild.members.fetch(id);
+
+    await member.send('❌ Вам отказали в начислении баллов');
+
+    return interaction.update({ content: '❌ Отклонено', components: [] });
   }
 
 });
 
 
-// =================================================
-//                ИНТЕРАКЦИИ
-// =================================================
-
-client.on('interactionCreate', async i=>{
-
-
-// ================= ЗАЯВКА =================
-
-if(i.isButton() && i.customId==='apply'){
-
-  const modal=new ModalBuilder()
-    .setCustomId('apply_form')
-    .setTitle('Заявка');
-
-  const input=(id,label,style)=>new ActionRowBuilder().addComponents(
-    new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(true)
-  );
-
-  modal.addComponents(
-    input('nick','Ник / возраст',TextInputStyle.Short),
-    input('online','Онлайн',TextInputStyle.Short),
-    input('fam','Семьи',TextInputStyle.Paragraph)
-  );
-
-  return i.showModal(modal);
-}
-
-
-if(i.isModalSubmit() && i.customId==='apply_form'){
-
-  const ch=i.guild.channels.cache.get(LOG_CHANNEL);
-
-  const embed=new EmbedBuilder()
-    .setTitle('📨 Новая заявка')
-    .setDescription(`${i.user}`);
-
-  const row=new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`watch_${i.user.id}`).setLabel('👀').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`call_${i.user.id}`).setLabel('📞').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`accept_${i.user.id}`).setLabel('✅').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`reject_${i.user.id}`).setLabel('❌').setStyle(ButtonStyle.Danger)
-  );
-
-  ch.send({embeds:[embed],components:[row]});
-  return i.reply({content:'Отправлено',flags:MessageFlags.Ephemeral});
-}
-
-
-// ❌ причина отказа
-if(i.isButton() && i.customId.startsWith('reject_')){
-
-  const id=i.customId.split('_')[1];
-
-  const modal=new ModalBuilder()
-    .setCustomId(`reject_reason_${id}`)
-    .setTitle('Причина отказа');
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('reason')
-        .setLabel('Причина')
-        .setStyle(TextInputStyle.Paragraph)
-    )
-  );
-
-  return i.showModal(modal);
-}
-
-
-if(i.isModalSubmit() && i.customId.startsWith('reject_reason_')){
-
-  const id=i.customId.split('_')[2];
-  const member=await i.guild.members.fetch(id);
-
-  member.send(`❌ Заявка отклонена\nПричина: ${i.fields.getTextInputValue('reason')}`);
-
-  return i.reply({content:'Отклонено',flags:MessageFlags.Ephemeral});
-}
-
-
-
-// ================= БАЛЛЫ =================
-
-// выбор кнопки
-if(i.isButton() && i.customId.startsWith('p_')){
-
-  const value=i.customId.split('_')[1];
-
-  const modal=new ModalBuilder()
-    .setCustomId(`proof_${value}`)
-    .setTitle('Скрин');
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('link')
-        .setLabel('Ссылка на скрин')
-        .setStyle(TextInputStyle.Short)
-    )
-  );
-
-  return i.showModal(modal);
-}
-
-
-// отправка скрина
-if(i.isModalSubmit() && i.customId.startsWith('proof_')){
-
-  const value=i.customId.split('_')[1];
-
-  const ch=i.guild.channels.cache.get(LOG_CHANNEL);
-
-  const btn=new ButtonBuilder()
-    .setCustomId(`confirm_${i.user.id}_${value}`)
-    .setLabel('✅ Подтвердить')
-    .setStyle(ButtonStyle.Success);
-
-  ch.send({
-    content:`${i.user} | ${value} баллов\n${i.fields.getTextInputValue('link')}`,
-    components:[new ActionRowBuilder().addComponents(btn)]
-  });
-
-  return i.reply({content:'Отправлено на проверку',flags:MessageFlags.Ephemeral});
-}
-
-
-// подтверждение
-if(i.isButton() && i.customId.startsWith('confirm_')){
-
-  const [ , id, val ] = i.customId.split('_');
-
-  add(id,Number(val));
-
-  const total=get(id);
-
-  const member=await i.guild.members.fetch(id);
-  member.send(`✅ Начислено ${val}\nВсего: ${total}`);
-
-  return i.update({content:'Начислено',components:[]});
-}
-
-
-// мои баллы
-if(i.isButton() && i.customId==='my_points'){
-  return i.reply({content:`У тебя ${get(i.user.id)} баллов`,flags:MessageFlags.Ephemeral});
-}
-
-
-});
-
+// ======================================================
 
 client.login(process.env.BOT_TOKEN);

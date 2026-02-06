@@ -14,7 +14,7 @@ const {
 // ========= НАСТРОЙ =========
 const APPLY_CHANNEL_NAME = "итог-заявок";
 const ROLE_NAME = "Участник";
-const IMAGE_URL = "https://cdn.discordapp.com/attachments/1287476053052493897/1437158625801146368/image.png";
+const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png?ex=698780d1&is=69862f51&hm=7ac657b0ea0d4f33ac9b690a7f2b19ddb4af9357602b314544580aedafe6149e&";
 // ===========================
 
 

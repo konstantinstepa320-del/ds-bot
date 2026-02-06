@@ -15,19 +15,20 @@ const {
 const APPLY_CHANNEL_NAME = "итог-заявок";
 const ROLE_NAME = "Участник";
 const IMAGE_URL = "https://cdn.discordapp.com/attachments/1287476053052493897/1437158625801146368/image.png";
-// ==========================
+// ===========================
 
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
   ]
 });
 
 
-// ================= ЗАПУСК =================
+// ================= READY =================
 client.once('ready', () => {
   console.log(`✅ Бот запущен как ${client.user.tag}`);
 });
@@ -38,15 +39,22 @@ client.on('messageCreate', async message => {
   if (message.content !== '!заявка') return;
 
   const embed = new EmbedBuilder()
-    .setTitle('🔥 Подача заявки')
-    .setDescription('👇 Нажми кнопку ниже, чтобы подать заявку')
-    .setColor('Red')
-    .setImage(IMAGE_URL);
+    .setColor('DarkRed')
+    .setImage(IMAGE_URL)
+    .setDescription(
+`👋 **Путь в семью начинается здесь!**
+
+• Уведомление об обзвоне приходит в ЛС  
+• Все заявки отправляются в канал **#${APPLY_CHANNEL_NAME}**  
+• Ответ обычно в течение 24 часов  
+
+Нажми кнопку ниже, чтобы подать заявку`
+    );
 
   const btn = new ButtonBuilder()
     .setCustomId('apply')
     .setLabel('Подать заявку')
-    .setStyle(ButtonStyle.Primary);
+    .setStyle(ButtonStyle.Danger);
 
   message.channel.send({
     embeds: [embed],
@@ -55,7 +63,7 @@ client.on('messageCreate', async message => {
 });
 
 
-// ================= ВСЕ ИНТЕРАКЦИИ =================
+// ================= INTERACTIONS =================
 client.on('interactionCreate', async interaction => {
 
   // ---------- открыть форму ----------
@@ -63,7 +71,7 @@ client.on('interactionCreate', async interaction => {
 
     const modal = new ModalBuilder()
       .setCustomId('applyModal')
-      .setTitle('Заявка');
+      .setTitle('Заявка в семью');
 
     const input = (id, label, style) =>
       new ActionRowBuilder().addComponents(
@@ -75,11 +83,11 @@ client.on('interactionCreate', async interaction => {
       );
 
     modal.addComponents(
-      input('nick', 'Ник / Имя / Возраст', TextInputStyle.Short),
-      input('online', 'Суточный онлайн и уровень', TextInputStyle.Short),
+      input('nick', 'Имя / Возраст / Ник', TextInputStyle.Short),
+      input('online', 'Онлайн + уровень', TextInputStyle.Short),
       input('fam', 'В каких семьях были?', TextInputStyle.Paragraph),
       input('where', 'Как узнал о семье?', TextInputStyle.Short),
-      input('skills', 'Откат тяги / спешик', TextInputStyle.Paragraph) // ✅ ИСПРАВЛЕНО
+      input('skills', 'Откат тяги / спешик', TextInputStyle.Paragraph)
     );
 
     return interaction.showModal(modal);
@@ -93,23 +101,16 @@ client.on('interactionCreate', async interaction => {
       c => c.name === APPLY_CHANNEL_NAME
     );
 
-    if (!channel) {
-      return interaction.reply({
-        content: '❌ Канал заявок не найден',
-        ephemeral: true
-      });
-    }
-
     const embed = new EmbedBuilder()
       .setTitle('📩 Новая заявка')
       .setColor('Red')
       .addFields(
         { name: '👤 Пользователь', value: `${interaction.user}` },
-        { name: 'Ник / Имя / Возраст', value: interaction.fields.getTextInputValue('nick') },
-        { name: 'Онлайн / Уровень', value: interaction.fields.getTextInputValue('online') },
+        { name: 'Имя / Ник', value: interaction.fields.getTextInputValue('nick') },
+        { name: 'Онлайн', value: interaction.fields.getTextInputValue('online') },
         { name: 'Семьи', value: interaction.fields.getTextInputValue('fam') },
         { name: 'Откуда узнал', value: interaction.fields.getTextInputValue('where') },
-        { name: 'Откат тяги / спешик', value: interaction.fields.getTextInputValue('skills') } // ✅ ИСПРАВЛЕНО
+        { name: 'Откат тяги / спешик', value: interaction.fields.getTextInputValue('skills') }
       );
 
 
@@ -117,11 +118,6 @@ client.on('interactionCreate', async interaction => {
       .setCustomId(`watch_${interaction.user.id}`)
       .setLabel('👀 Смотрю')
       .setStyle(ButtonStyle.Secondary);
-
-    const call = new ButtonBuilder()
-      .setCustomId(`call_${interaction.user.id}`)
-      .setLabel('📞 Обзвон')
-      .setStyle(ButtonStyle.Primary);
 
     const accept = new ButtonBuilder()
       .setCustomId(`accept_${interaction.user.id}`)
@@ -133,7 +129,7 @@ client.on('interactionCreate', async interaction => {
       .setLabel('❌ Отклонить')
       .setStyle(ButtonStyle.Danger);
 
-    const row = new ActionRowBuilder().addComponents(watch, call, accept, reject);
+    const row = new ActionRowBuilder().addComponents(watch, accept, reject);
 
     channel.send({ embeds: [embed], components: [row] });
 
@@ -143,17 +139,7 @@ client.on('interactionCreate', async interaction => {
 
   // ---------- 👀 СМОТРЮ ----------
   if (interaction.isButton() && interaction.customId.startsWith('watch_')) {
-    interaction.reply({ content: `👀 Рассматривает ${interaction.user}`, ephemeral: false });
-  }
-
-
-  // ---------- 📞 ОБЗВОН ----------
-  if (interaction.isButton() && interaction.customId.startsWith('call_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-
-    member.send('📞 Вас вызывают на обзвон!');
-    interaction.reply({ content: '📞 Пользователь вызван', ephemeral: true });
+    return interaction.reply({ content: `👀 Заявку рассматривает ${interaction.user}` });
   }
 
 
@@ -166,21 +152,48 @@ client.on('interactionCreate', async interaction => {
     if (role) await member.roles.add(role);
 
     member.send('🎉 Ваша заявка принята!');
-    interaction.update({ content: '✅ Принято', components: [] });
+    return interaction.update({ content: '✅ Принято', components: [] });
   }
 
 
-  // ---------- ❌ ОТКЛОНИТЬ ----------
+  // ---------- ❌ ОТКЛОНИТЬ (С ПРИЧИНОЙ) ----------
   if (interaction.isButton() && interaction.customId.startsWith('reject_')) {
+
+    const id = interaction.customId.split('_')[1];
+
+    const modal = new ModalBuilder()
+      .setCustomId(`rejectReason_${id}`)
+      .setTitle('Причина отказа');
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('reason')
+          .setLabel('Укажите причину отказа')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
+    );
+
+    return interaction.showModal(modal);
+  }
+
+
+  // ---------- отправка причины ----------
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('rejectReason_')) {
+
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
 
-    member.send('❌ Ваша заявка отклонена.');
-    interaction.update({ content: '❌ Отклонено', components: [] });
+    const reason = interaction.fields.getTextInputValue('reason');
+
+    member.send(`❌ Ваша заявка отклонена.\n\nПричина:\n${reason}`);
+
+    return interaction.update({ content: '❌ Отклонено с причиной', components: [] });
   }
 
 });
 
 
-// ================= ВХОД =================
+// ================= LOGIN =================
 client.login(process.env.BOT_TOKEN);

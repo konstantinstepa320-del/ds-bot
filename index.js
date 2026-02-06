@@ -13,8 +13,11 @@ const {
 
 
 // ================= НАСТРОЙКИ =================
+
+// канал заявок
 const APPLY_CHANNEL_ID = "1469158146500198645";
 
+// роли, которые могут нажимать кнопки
 const STAFF_ROLES = [
   "leader",
   "Батя",
@@ -26,8 +29,10 @@ const STAFF_ROLES = [
   "Hight"
 ];
 
+// роли, которые выдаются при принятии
 const ROLE_1 = "DaSouza";
 const ROLE_2 = "Test";
+
 // ============================================
 
 
@@ -41,7 +46,7 @@ const client = new Client({
 });
 
 
-// ===== ПРОВЕРКА ДОСТУПА =====
+// ===== проверка доступа =====
 function hasAccess(member) {
   return member.roles.cache.some(r => STAFF_ROLES.includes(r.name));
 }
@@ -64,7 +69,7 @@ client.on('messageCreate', async message => {
     .setStyle(ButtonStyle.Primary);
 
   await message.channel.send({
-    content: 'Нажми кнопку чтобы подать заявку',
+    content: 'Нажмите кнопку ниже, чтобы подать заявку',
     components: [new ActionRowBuilder().addComponents(btn)]
   });
 });
@@ -89,12 +94,13 @@ client.on('interactionCreate', async interaction => {
           .setRequired(true)
       );
 
+    // 🔥 ТВОИ ПОЛЯ (как просил)
     modal.addComponents(
-      input('nick', 'Ник / возраст', TextInputStyle.Short),
-      input('online', 'Онлайн', TextInputStyle.Short),
-      input('fam', 'Семьи', TextInputStyle.Paragraph),
-      input('where', 'Откуда узнал', TextInputStyle.Short),
-      input('skills', 'Навыки', TextInputStyle.Paragraph)
+      input('nick', 'Ник / Имя / Возраст', TextInputStyle.Short),
+      input('online', 'Суточный онлайн и уровень', TextInputStyle.Short),
+      input('fam', 'В каких семьях были?', TextInputStyle.Paragraph),
+      input('where', 'Как узнал о семье?', TextInputStyle.Short),
+      input('skills', 'Откат тяги / спешик', TextInputStyle.Paragraph)
     );
 
     return interaction.showModal(modal);
@@ -110,12 +116,12 @@ client.on('interactionCreate', async interaction => {
       .setColor('DarkRed')
       .setTitle('📩 Новая заявка')
       .addFields(
-        { name: 'Пользователь', value: `${interaction.user}` },
-        { name: 'Ник', value: interaction.fields.getTextInputValue('nick') },
-        { name: 'Онлайн', value: interaction.fields.getTextInputValue('online') },
-        { name: 'Семьи', value: interaction.fields.getTextInputValue('fam') },
-        { name: 'Откуда', value: interaction.fields.getTextInputValue('where') },
-        { name: 'Навыки', value: interaction.fields.getTextInputValue('skills') }
+        { name: '👤 Пользователь', value: `${interaction.user}`, inline: false },
+        { name: 'Ник', value: interaction.fields.getTextInputValue('nick'), inline: false },
+        { name: 'Онлайн', value: interaction.fields.getTextInputValue('online'), inline: false },
+        { name: 'Семьи', value: interaction.fields.getTextInputValue('fam'), inline: false },
+        { name: 'Откуда узнал', value: interaction.fields.getTextInputValue('where'), inline: false },
+        { name: 'Откат / спешик', value: interaction.fields.getTextInputValue('skills'), inline: false }
       );
 
     const row = new ActionRowBuilder().addComponents(
@@ -127,17 +133,23 @@ client.on('interactionCreate', async interaction => {
 
     await channel.send({ embeds: [embed], components: [row] });
 
-    return interaction.reply({ content: '✅ Заявка отправлена!', flags: MessageFlags.Ephemeral });
+    return interaction.reply({
+      content: '✅ Заявка отправлена!',
+      flags: MessageFlags.Ephemeral
+    });
   }
 
 
-  // ===== ВСЕ КНОПКИ ТОЛЬКО ДЛЯ СТАФФА =====
-  if (interaction.isButton() &&
-      (interaction.customId.startsWith('watch_') ||
-       interaction.customId.startsWith('call_') ||
-       interaction.customId.startsWith('accept_') ||
-       interaction.customId.startsWith('reject_'))) {
-
+  // ===== проверка доступа к кнопкам =====
+  if (
+    interaction.isButton() &&
+    (
+      interaction.customId.startsWith('watch_') ||
+      interaction.customId.startsWith('call_') ||
+      interaction.customId.startsWith('accept_') ||
+      interaction.customId.startsWith('reject_')
+    )
+  ) {
     if (!hasAccess(interaction.member)) {
       return interaction.reply({
         content: '❌ У вас нет доступа',
@@ -148,19 +160,36 @@ client.on('interactionCreate', async interaction => {
 
 
   // ===== действия =====
-  if (interaction.customId.startsWith('watch_'))
-    return interaction.reply({ content: '👀 Взято на рассмотрение', flags: MessageFlags.Ephemeral });
+  if (interaction.customId.startsWith('watch_')) {
+    return interaction.reply({ content: '👀 Заявка взята на рассмотрение', flags: MessageFlags.Ephemeral });
+  }
 
-  if (interaction.customId.startsWith('call_'))
-    return interaction.reply({ content: '📞 Вызван на обзвон', flags: MessageFlags.Ephemeral });
+  if (interaction.customId.startsWith('call_')) {
+    const id = interaction.customId.split('_')[1];
+    const member = await interaction.guild.members.fetch(id);
+    await member.send('📞 Вас вызывают на обзвон!');
+    return interaction.reply({ content: '📞 Пользователь вызван', flags: MessageFlags.Ephemeral });
+  }
 
-  if (interaction.customId.startsWith('accept_'))
+  if (interaction.customId.startsWith('accept_')) {
+    const id = interaction.customId.split('_')[1];
+    const member = await interaction.guild.members.fetch(id);
+
+    const role1 = interaction.guild.roles.cache.find(r => r.name === ROLE_1);
+    const role2 = interaction.guild.roles.cache.find(r => r.name === ROLE_2);
+
+    if (role1) await member.roles.add(role1);
+    if (role2) await member.roles.add(role2);
+
     return interaction.update({ content: '✅ Принято', components: [] });
+  }
 
-  if (interaction.customId.startsWith('reject_'))
+  if (interaction.customId.startsWith('reject_')) {
     return interaction.update({ content: '❌ Отклонено', components: [] });
+  }
 
 });
 
 
+// ================= ЛОГИН =================
 client.login(process.env.BOT_TOKEN);

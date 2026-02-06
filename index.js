@@ -7,16 +7,17 @@ const {
   ActionRowBuilder,
   ModalBuilder,
   TextInputBuilder,
-  TextInputStyle
+  TextInputStyle,
+  MessageFlags
 } = require('discord.js');
 
 
 // ================= НАСТРОЙКИ =================
-const APPLY_CHANNEL_NAME = "итог-заявок"; // канал заявок
-const ROLE_1 = "DaSouza";                // 1 роль
-const ROLE_2 = "Test";                  // 2 роль
+const APPLY_CHANNEL_NAME = "итог-заявок";
+const ROLE_1 = "DaSouza";
+const ROLE_2 = "Test";
 
-const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png?ex=698780d1&is=69862f51&hm=7ac657b0ea0d4f33ac9b690a7f2b19ddb4af9357602b314544580aedafe6149e&";
+const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
 // ============================================
 
 
@@ -31,7 +32,7 @@ const client = new Client({
 
 
 // ================= ЗАПУСК =================
-client.once('ready', () => {
+client.once('clientReady', () => {
   console.log(`✅ Бот запущен как ${client.user.tag}`);
 });
 
@@ -42,7 +43,7 @@ client.on('messageCreate', async message => {
 
   const embed = new EmbedBuilder()
     .setColor('DarkRed')
-    .setImage(IMAGE_URL) // 🔥 картинка сверху
+    .setImage(IMAGE_URL)
     .setTitle('👋 Путь в семью начинается здесь!')
     .setDescription(
 `• Уведомление об обзвоне приходит в личные сообщения  
@@ -57,7 +58,7 @@ client.on('messageCreate', async message => {
     .setLabel('Подать заявку')
     .setStyle(ButtonStyle.Primary);
 
-  message.channel.send({
+  await message.channel.send({
     embeds: [embed],
     components: [new ActionRowBuilder().addComponents(btn)]
   });
@@ -98,9 +99,15 @@ client.on('interactionCreate', async interaction => {
   // ---------- отправка формы ----------
   if (interaction.isModalSubmit() && interaction.customId === 'applyModal') {
 
-    const channel = interaction.guild.channels.cache.find(
-      c => c.name === APPLY_CHANNEL_NAME
-    );
+    const channels = await interaction.guild.channels.fetch();
+    const channel = channels.find(c => c.name === APPLY_CHANNEL_NAME);
+
+    if (!channel) {
+      return interaction.reply({
+        content: `❌ Канал "${APPLY_CHANNEL_NAME}" не найден`,
+        flags: MessageFlags.Ephemeral
+      });
+    }
 
     const embed = new EmbedBuilder()
       .setColor('DarkRed')
@@ -114,32 +121,19 @@ client.on('interactionCreate', async interaction => {
         { name: 'Откат / спешик', value: interaction.fields.getTextInputValue('skills') }
       );
 
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`watch_${interaction.user.id}`).setLabel('👀 Смотрю').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`call_${interaction.user.id}`).setLabel('📞 Обзвон').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`reject_${interaction.user.id}`).setLabel('❌ Отклонить').setStyle(ButtonStyle.Danger),
+    );
 
-    const watch = new ButtonBuilder()
-      .setCustomId(`watch_${interaction.user.id}`)
-      .setLabel('👀 Смотрю')
-      .setStyle(ButtonStyle.Secondary);
+    await channel.send({ embeds: [embed], components: [row] });
 
-    const call = new ButtonBuilder()
-      .setCustomId(`call_${interaction.user.id}`)
-      .setLabel('📞 Обзвон')
-      .setStyle(ButtonStyle.Primary);
-
-    const accept = new ButtonBuilder()
-      .setCustomId(`accept_${interaction.user.id}`)
-      .setLabel('✅ Принять')
-      .setStyle(ButtonStyle.Success);
-
-    const reject = new ButtonBuilder()
-      .setCustomId(`reject_${interaction.user.id}`)
-      .setLabel('❌ Отклонить')
-      .setStyle(ButtonStyle.Danger);
-
-    const row = new ActionRowBuilder().addComponents(watch, call, accept, reject);
-
-    channel.send({ embeds: [embed], components: [row] });
-
-    interaction.reply({ content: '✅ Заявка отправлена!', ephemeral: true });
+    await interaction.reply({
+      content: '✅ Заявка отправлена!',
+      flags: MessageFlags.Ephemeral
+    });
   }
 
 
@@ -149,7 +143,7 @@ client.on('interactionCreate', async interaction => {
     const member = await interaction.guild.members.fetch(id);
 
     await member.send('👀 Ваша заявка взята на рассмотрение!');
-    interaction.reply({ content: '👀 Вы взяли заявку', ephemeral: true });
+    await interaction.reply({ content: '👀 Вы взяли заявку', flags: MessageFlags.Ephemeral });
   }
 
 
@@ -159,13 +153,12 @@ client.on('interactionCreate', async interaction => {
     const member = await interaction.guild.members.fetch(id);
 
     await member.send('📞 Вас вызывают на обзвон! Зайдите в голосовой канал.');
-    interaction.reply({ content: '📞 Пользователь вызван', ephemeral: true });
+    await interaction.reply({ content: '📞 Пользователь вызван', flags: MessageFlags.Ephemeral });
   }
 
 
-  // ---------- ПРИНЯТЬ (выдача ролей) ----------
+  // ---------- ПРИНЯТЬ ----------
   if (interaction.isButton() && interaction.customId.startsWith('accept_')) {
-
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
 
@@ -177,26 +170,26 @@ client.on('interactionCreate', async interaction => {
 
     await member.send('🎉 Поздравляем! Ваша заявка принята. Роли выданы.');
 
-    interaction.update({ content: '✅ Принято', components: [] });
+    await interaction.update({ content: '✅ Принято', components: [] });
   }
 
 
-  // ---------- ОТКЛОНИТЬ С ПРИЧИНОЙ ----------
+  // ---------- ОТКЛОНИТЬ ----------
   if (interaction.isButton() && interaction.customId.startsWith('reject_')) {
 
     const modal = new ModalBuilder()
       .setCustomId(`rejectReason_${interaction.customId.split('_')[1]}`)
       .setTitle('Причина отказа');
 
-    const input = new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('reason')
-        .setLabel('Укажите причину')
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true)
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('reason')
+          .setLabel('Укажите причину')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
     );
-
-    modal.addComponents(input);
 
     return interaction.showModal(modal);
   }
@@ -212,7 +205,7 @@ client.on('interactionCreate', async interaction => {
 
     await member.send(`❌ Ваша заявка отклонена.\nПричина: ${reason}`);
 
-    interaction.update({ content: `❌ Отклонено\nПричина: ${reason}`, components: [] });
+    await interaction.update({ content: `❌ Отклонено\nПричина: ${reason}`, components: [] });
   }
 
 });

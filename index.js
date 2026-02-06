@@ -13,35 +13,26 @@ const {
 
 const fs = require('fs');
 
-const APPLY_CHANNEL_ID = "1469158146500198645";
-const POINTS_CHANNEL_ID = "1464632454697455737";
-const IMAGE_URL = "https://i.imgur.com/8Km9tLL.png";
+
+// ===== ТВОИ ID =====
+const LOG_CHANNEL = "1469477344161959957"; // проверки
+const STATS_CHANNEL = "1469478344772026409"; // мои баллы
+
+const IMAGE =
+"https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
 
 
-// ================= БАЛЛЫ =================
-
+// ===== БАЛЛЫ =====
 const DB = "./points.json";
-let points = fs.existsSync(DB) ? JSON.parse(fs.readFileSync(DB)) : {};
+let db = fs.existsSync(DB) ? JSON.parse(fs.readFileSync(DB)) : {};
 
-function save() {
-  fs.writeFileSync(DB, JSON.stringify(points));
-}
-
-function add(id, n) {
-  if (!points[id]) points[id] = 0;
-  points[id] += n;
-  save();
-}
-
-function get(id) {
-  return points[id] || 0;
-}
+const add = (id,n)=>{ if(!db[id])db[id]=0; db[id]+=n; fs.writeFileSync(DB,JSON.stringify(db)); }
+const get = id => db[id] || 0;
 
 
-// ================= БОТ =================
-
+// ===== БОТ =====
 const client = new Client({
-  intents: [
+  intents:[
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
@@ -49,220 +40,223 @@ const client = new Client({
   ]
 });
 
-client.once('clientReady', () => {
-  console.log("Бот готов");
-});
+client.once('ready',()=>console.log('✅ Бот запущен'));
 
 
-// ================= КОМАНДЫ =================
+// =================================================
+//                    КОМАНДЫ
+// =================================================
 
-client.on('messageCreate', async msg => {
-  if (msg.author.bot) return;
+client.on('messageCreate', async msg=>{
+  if(msg.author.bot) return;
 
 
-  // ========= ПАНЕЛЬ ЗАЯВКИ =========
-  if (msg.content === '!заявка') {
+  // ===== ПАНЕЛЬ ЗАЯВКИ =====
+  if(msg.content==='!заявка'){
 
-    const embed = new EmbedBuilder()
-      .setImage(IMAGE_URL)
-      .setTitle('📩 Подать заявку')
-      .setDescription('Нажми кнопку ниже');
+    const embed=new EmbedBuilder()
+      .setImage(IMAGE)
+      .setTitle('📩 Подать заявку');
 
-    const btn = new ButtonBuilder()
+    const btn=new ButtonBuilder()
       .setCustomId('apply')
-      .setLabel('Подать заявку')
+      .setLabel('Подать')
       .setStyle(ButtonStyle.Primary);
 
     msg.channel.send({
-      embeds: [embed],
-      components: [new ActionRowBuilder().addComponents(btn)]
+      embeds:[embed],
+      components:[new ActionRowBuilder().addComponents(btn)]
     });
   }
 
 
-  // ========= ПАНЕЛЬ ПОВЫШЕНИЯ =========
-  if (msg.content === '!повышение') {
+  // ===== ПАНЕЛЬ ПОВЫШЕНИЯ =====
+  if(msg.content==='!повышение'){
 
-    const embed = new EmbedBuilder()
-      .setImage(IMAGE_URL)
+    const embed=new EmbedBuilder()
+      .setImage(IMAGE)
       .setTitle('📈 Система повышения')
-      .setDescription(`
-🚗 Трасса +2
-📦 Дроп +3
-⚔️ Капт +4
-🔐 Тайник +2
-🥇 Топ 1 +1
-🎮 МП +3
-❌ Варн -50
-`);
+      .setDescription('Нажми нужную кнопку');
 
-    const btn = new ButtonBuilder()
-      .setCustomId('points_open')
-      .setLabel('Получить баллы')
+    const row=new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('p_2').setLabel('🔐 Тайник +2').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('p_3').setLabel('📦 Дроп +3').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('p_4').setLabel('⚔️ Капт +4').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('p_1').setLabel('🥇 Топ1 +1').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('p_-50').setLabel('❌ Варн -50').setStyle(ButtonStyle.Danger)
+    );
+
+    msg.channel.send({embeds:[embed],components:[row]});
+  }
+
+
+  // ===== ПАНЕЛЬ БАЛЛОВ =====
+  if(msg.content==='!баллыпанель'){
+
+    const embed=new EmbedBuilder()
+      .setImage(IMAGE)
+      .setTitle('📊 Мои баллы');
+
+    const btn=new ButtonBuilder()
+      .setCustomId('my_points')
+      .setLabel('Сколько у меня баллов')
       .setStyle(ButtonStyle.Success);
 
-    msg.channel.send({
-      embeds: [embed],
-      components: [new ActionRowBuilder().addComponents(btn)]
-    });
+    msg.channel.send({embeds:[embed],components:[new ActionRowBuilder().addComponents(btn)]});
   }
 
-
-  if (msg.content === '!баллы') {
-    msg.reply(`У тебя ${get(msg.author.id)} баллов`);
-  }
 });
 
 
-// ================= ИНТЕРАКЦИИ =================
+// =================================================
+//                ИНТЕРАКЦИИ
+// =================================================
 
-client.on('interactionCreate', async i => {
-
-  // ========= КНОПКА ЗАЯВКИ =========
-  if (i.isButton() && i.customId === 'apply') {
-
-    const modal = new ModalBuilder()
-      .setCustomId('apply_form')
-      .setTitle('Заявка');
-
-    const row = (id, label, style) =>
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId(id)
-          .setLabel(label)
-          .setStyle(style)
-          .setRequired(true)
-      );
-
-    modal.addComponents(
-      row('nick','Ник / Имя / Возраст',TextInputStyle.Short),
-      row('online','Суточный онлайн и уровень',TextInputStyle.Short),
-      row('fam','В каких семьях были?',TextInputStyle.Paragraph),
-      row('where','Как узнал о семье?',TextInputStyle.Short),
-      row('skills','Откат тяги / спешик',TextInputStyle.Paragraph)
-    );
-
-    return i.showModal(modal);
-  }
+client.on('interactionCreate', async i=>{
 
 
-  // ========= ОТПРАВКА ЗАЯВКИ =========
-  if (i.isModalSubmit() && i.customId === 'apply_form') {
+// ================= ЗАЯВКА =================
 
-    const channel = i.guild.channels.cache.get(APPLY_CHANNEL_ID);
+if(i.isButton() && i.customId==='apply'){
 
-    const embed = new EmbedBuilder()
-      .setTitle('📨 Новая заявка')
-      .addFields(
-        { name:'👤 Пользователь', value:`${i.user}` },
-        { name:'Ник', value:i.fields.getTextInputValue('nick') },
-        { name:'Онлайн', value:i.fields.getTextInputValue('online') },
-        { name:'Семьи', value:i.fields.getTextInputValue('fam') },
-        { name:'Откуда узнал', value:i.fields.getTextInputValue('where') },
-        { name:'Навыки', value:i.fields.getTextInputValue('skills') }
-      );
+  const modal=new ModalBuilder()
+    .setCustomId('apply_form')
+    .setTitle('Заявка');
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`watch_${i.user.id}`).setLabel('👀 Смотрю').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`call_${i.user.id}`).setLabel('📞 Обзвон').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`accept_${i.user.id}`).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`reject_${i.user.id}`).setLabel('❌ Отклонить').setStyle(ButtonStyle.Danger),
-    );
+  const input=(id,label,style)=>new ActionRowBuilder().addComponents(
+    new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(true)
+  );
 
-    await channel.send({ embeds:[embed], components:[row] });
+  modal.addComponents(
+    input('nick','Ник / возраст',TextInputStyle.Short),
+    input('online','Онлайн',TextInputStyle.Short),
+    input('fam','Семьи',TextInputStyle.Paragraph)
+  );
 
-    return i.reply({ content:'Заявка отправлена', flags:MessageFlags.Ephemeral });
-  }
+  return i.showModal(modal);
+}
 
 
-  // ========= КНОПКИ ЗАЯВОК (БЕЗ ОГРАНИЧЕНИЙ) =========
-  if (i.isButton() && i.customId.startsWith('watch_')) {
-    const id = i.customId.split('_')[1];
-    const m = await i.guild.members.fetch(id);
-    m.send('👀 Твою заявку смотрят');
-    return i.reply({ content:'Отмечено', flags:MessageFlags.Ephemeral });
-  }
+if(i.isModalSubmit() && i.customId==='apply_form'){
 
-  if (i.isButton() && i.customId.startsWith('call_')) {
-    const id = i.customId.split('_')[1];
-    const m = await i.guild.members.fetch(id);
-    m.send('📞 Тебя вызывают на обзвон');
-    return i.reply({ content:'Вызван', flags:MessageFlags.Ephemeral });
-  }
+  const ch=i.guild.channels.cache.get(LOG_CHANNEL);
 
-  if (i.isButton() && i.customId.startsWith('accept_')) {
-    return i.update({ content:'✅ Принято', components:[] });
-  }
+  const embed=new EmbedBuilder()
+    .setTitle('📨 Новая заявка')
+    .setDescription(`${i.user}`);
 
-  if (i.isButton() && i.customId.startsWith('reject_')) {
-    return i.update({ content:'❌ Отклонено', components:[] });
-  }
+  const row=new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`watch_${i.user.id}`).setLabel('👀').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`call_${i.user.id}`).setLabel('📞').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`accept_${i.user.id}`).setLabel('✅').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`reject_${i.user.id}`).setLabel('❌').setStyle(ButtonStyle.Danger)
+  );
+
+  ch.send({embeds:[embed],components:[row]});
+  return i.reply({content:'Отправлено',flags:MessageFlags.Ephemeral});
+}
 
 
-  // ========= СИСТЕМА БАЛЛОВ =========
-  if (i.isButton() && i.customId === 'points_open') {
+// ❌ причина отказа
+if(i.isButton() && i.customId.startsWith('reject_')){
 
-    const modal = new ModalBuilder()
-      .setCustomId('points_form')
-      .setTitle('Получить баллы');
+  const id=i.customId.split('_')[1];
 
-    const row = (id, label) =>
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId(id)
-          .setLabel(label)
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-      );
+  const modal=new ModalBuilder()
+    .setCustomId(`reject_reason_${id}`)
+    .setTitle('Причина отказа');
 
-    modal.addComponents(
-      row('type','Что сделал?'),
-      row('nick','Ник'),
-      row('proof','Ссылка на скрин')
-    );
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('reason')
+        .setLabel('Причина')
+        .setStyle(TextInputStyle.Paragraph)
+    )
+  );
 
-    return i.showModal(modal);
-  }
+  return i.showModal(modal);
+}
 
 
-  if (i.isModalSubmit() && i.customId === 'points_form') {
+if(i.isModalSubmit() && i.customId.startsWith('reject_reason_')){
 
-    const map = {
-      "трасса":2,"дроп":3,"капт":4,"тайник":2,"топ":1,"мп":3,"варн":-50
-    };
+  const id=i.customId.split('_')[2];
+  const member=await i.guild.members.fetch(id);
 
-    const type = i.fields.getTextInputValue('type').toLowerCase();
-    const val = map[type] || 0;
+  member.send(`❌ Заявка отклонена\nПричина: ${i.fields.getTextInputValue('reason')}`);
 
-    const channel = i.guild.channels.cache.get(POINTS_CHANNEL_ID);
-
-    const btn = new ButtonBuilder()
-      .setCustomId(`confirm_${i.user.id}_${val}`)
-      .setLabel('✅ Подтвердить')
-      .setStyle(ButtonStyle.Success);
-
-    await channel.send({
-      content:`${i.user} | ${type} | ${val}`,
-      components:[new ActionRowBuilder().addComponents(btn)]
-    });
-
-    return i.reply({ content:'Отправлено на проверку', flags:MessageFlags.Ephemeral });
-  }
+  return i.reply({content:'Отклонено',flags:MessageFlags.Ephemeral});
+}
 
 
-  if (i.isButton() && i.customId.startsWith('confirm_')) {
 
-    const [ , id, val ] = i.customId.split('_');
+// ================= БАЛЛЫ =================
 
-    add(id, Number(val));
+// выбор кнопки
+if(i.isButton() && i.customId.startsWith('p_')){
 
-    const total = get(id);
+  const value=i.customId.split('_')[1];
 
-    const m = await i.guild.members.fetch(id);
-    m.send(`Тебе начислено ${val}\nВсего: ${total}`);
+  const modal=new ModalBuilder()
+    .setCustomId(`proof_${value}`)
+    .setTitle('Скрин');
 
-    return i.update({ content:`Начислено ${val}`, components:[] });
-  }
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('link')
+        .setLabel('Ссылка на скрин')
+        .setStyle(TextInputStyle.Short)
+    )
+  );
+
+  return i.showModal(modal);
+}
+
+
+// отправка скрина
+if(i.isModalSubmit() && i.customId.startsWith('proof_')){
+
+  const value=i.customId.split('_')[1];
+
+  const ch=i.guild.channels.cache.get(LOG_CHANNEL);
+
+  const btn=new ButtonBuilder()
+    .setCustomId(`confirm_${i.user.id}_${value}`)
+    .setLabel('✅ Подтвердить')
+    .setStyle(ButtonStyle.Success);
+
+  ch.send({
+    content:`${i.user} | ${value} баллов\n${i.fields.getTextInputValue('link')}`,
+    components:[new ActionRowBuilder().addComponents(btn)]
+  });
+
+  return i.reply({content:'Отправлено на проверку',flags:MessageFlags.Ephemeral});
+}
+
+
+// подтверждение
+if(i.isButton() && i.customId.startsWith('confirm_')){
+
+  const [ , id, val ] = i.customId.split('_');
+
+  add(id,Number(val));
+
+  const total=get(id);
+
+  const member=await i.guild.members.fetch(id);
+  member.send(`✅ Начислено ${val}\nВсего: ${total}`);
+
+  return i.update({content:'Начислено',components:[]});
+}
+
+
+// мои баллы
+if(i.isButton() && i.customId==='my_points'){
+  return i.reply({content:`У тебя ${get(i.user.id)} баллов`,flags:MessageFlags.Ephemeral});
+}
+
 
 });
 

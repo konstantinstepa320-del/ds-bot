@@ -1,5 +1,4 @@
-const {
-  Client,
+ Client,
   GatewayIntentBits,
   EmbedBuilder,
   ButtonBuilder,
@@ -13,7 +12,7 @@ const {
 
 
 // ================= НАСТРОЙКИ =================
-const APPLY_CHANNEL_NAME = "итог-заявок";
+const APPLY_CHANNEL_ID = "1469158146500198645"; // ← твой канал
 const ROLE_1 = "DaSouza";
 const ROLE_2 = "Test";
 
@@ -47,7 +46,7 @@ client.on('messageCreate', async message => {
     .setTitle('👋 Путь в семью начинается здесь!')
     .setDescription(
 `• Уведомление об обзвоне приходит в личные сообщения  
-• Все заявки попадают в канал **#${APPLY_CHANNEL_NAME}**  
+• Все заявки попадают в канал заявок  
 • Ответ обычно в течение 24 часов  
 
 👇 Нажми кнопку ниже, чтобы подать заявку`
@@ -99,12 +98,11 @@ client.on('interactionCreate', async interaction => {
   // ---------- отправка формы ----------
   if (interaction.isModalSubmit() && interaction.customId === 'applyModal') {
 
-    const channels = await interaction.guild.channels.fetch();
-    const channel = channels.find(c => c.name === APPLY_CHANNEL_NAME);
+    const channel = await interaction.guild.channels.fetch(APPLY_CHANNEL_ID);
 
     if (!channel) {
       return interaction.reply({
-        content: `❌ Канал "${APPLY_CHANNEL_NAME}" не найден`,
+        content: `❌ Канал заявок не найден`,
         flags: MessageFlags.Ephemeral
       });
     }

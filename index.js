@@ -1,4 +1,3 @@
-Kenzo, [07.02.2026 4:40]
 const {
   Client,
   GatewayIntentBits,

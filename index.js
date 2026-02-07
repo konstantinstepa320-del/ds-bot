@@ -23,9 +23,8 @@ const ROLE_1 = "DaSouza";
 const ROLE_2 = "Test";
 
 // маккоины
-const PROMO_CHANNEL = "1464632454697455737";
-const BALANCE_CHANNEL = "1469478344772026409";
-const SCREEN_CHANNEL = "1469477344161959957";
+const BALANCE_CHANNEL = "1469478344772026409"; // лог начислений
+const SCREEN_CHANNEL = "1469477344161959957";  // скрины
 
 const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
 
@@ -41,77 +40,38 @@ const client = new Client({
 });
 
 
-// =================================================
-// READY (ОДИН ОБЩИЙ)
-// =================================================
-client.once('ready', async () => {
+// ================= READY =================
+client.once('ready', () => {
   console.log(`✅ Бот запущен как ${client.user.tag}`);
-  await sendPromoPanel();
 });
 
 
 // =================================================
-// ФУНКЦИИ
+// ФУНКЦИЯ НАЧИСЛЕНИЯ МАККОИНОВ
 // =================================================
-
-// отправка панели повышения
-async function sendPromoPanel() {
-  const channel = await client.channels.fetch(PROMO_CHANNEL);
-
-  await channel.bulkDelete(20).catch(() => {}); // очистка старых
-
-  const embed = new EmbedBuilder()
-    .setColor('DarkRed')
-    .setImage(IMAGE_URL)
-    .setTitle('🪙 Система повышения')
-    .setDescription(
-`Зарабатывай **МакКоины**
-
-Дроп — 3  
-Топ 1 арены — 1  
-МП — 4  
-Капт — 4  
-Трасса — 2`
-    );
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("promo_menu")
-      .setLabel("📋 Открыть меню")
-      .setStyle(ButtonStyle.Primary),
-
-    new ButtonBuilder()
-      .setCustomId("promo_balance")
-      .setLabel("🪙 Мой баланс")
-      .setStyle(ButtonStyle.Secondary)
-  );
-
-  await channel.send({ embeds: [embed], components: [row] });
-}
-
-
-// начисление монет
 async function addCoins(userId, amount, reason, guild) {
   await db.add(`coins_${userId}`, amount);
 
-  const log = await guild.channels.fetch(BALANCE_CHANNEL);
+  const channel = await guild.channels.fetch(BALANCE_CHANNEL);
 
   const embed = new EmbedBuilder()
-    .setColor("DarkRed")
+    .setColor('DarkRed')
     .setDescription(`💰 <@${userId}> получил **${amount} МакКоин(ов)**\nПричина: ${reason}`);
 
-  log.send({ embeds: [embed] });
+  channel.send({ embeds: [embed] });
 }
 
 
 // =================================================
-// MESSAGE CREATE
+// MESSAGE CREATE (ВСЕ КОМАНДЫ)
 // =================================================
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // ===== !заявка =====
+
+  // ================= !заявка =================
   if (message.content === '!заявка') {
+
     const embed = new EmbedBuilder()
       .setColor('DarkRed')
       .setImage(IMAGE_URL)
@@ -135,14 +95,52 @@ client.on('messageCreate', async message => {
   }
 
 
-  // ===== !панель (ручное создание) =====
-  if (message.content === '!панель') {
-    return sendPromoPanel();
+  // ================= !повышение =================
+  if (message.content === '!повышение') {
+
+    const embed = new EmbedBuilder()
+      .setColor('DarkRed')
+      .setImage(IMAGE_URL)
+      .setTitle('🪙 Система повышения')
+      .setDescription(
+`Зарабатывай **МакКоины**
+
+Дроп — 3
+Топ 1 арены — 1
+МП — 4
+Капт — 4
+Трасса — 2
+
+👇 Нажми кнопку`
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("promo_menu")
+        .setLabel("📋 Открыть меню")
+        .setStyle(ButtonStyle.Primary),
+
+      new ButtonBuilder()
+        .setCustomId("promo_balance")
+        .setLabel("🪙 Мой баланс")
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    return message.channel.send({ embeds: [embed], components: [row] });
   }
 
 
-  // ===== кнопка под скринами =====
+  // ================= !баланс =================
+  if (message.content === '!баланс') {
+    const coins = await db.get(`coins_${message.author.id}`) || 0;
+
+    return message.reply(`🪙 Ваш баланс: **${coins} МакКоинов**`);
+  }
+
+
+  // ================= кнопка под скринами =================
   if (message.channel.id === SCREEN_CHANNEL) {
+
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`good_${message.author.id}`)
@@ -160,7 +158,7 @@ client.on('messageCreate', async message => {
 // =================================================
 client.on('interactionCreate', async interaction => {
 
-  // ================= ЗАЯВКА =================
+  // ===== открыть заявку =====
   if (interaction.isButton() && interaction.customId === 'apply') {
 
     const modal = new ModalBuilder()
@@ -188,7 +186,7 @@ client.on('interactionCreate', async interaction => {
   }
 
 
-  // отправка заявки
+  // ===== отправка заявки =====
   if (interaction.isModalSubmit() && interaction.customId === 'applyModal') {
 
     const channel = await interaction.guild.channels.fetch(APPLY_CHANNEL_ID);
@@ -205,36 +203,21 @@ client.on('interactionCreate', async interaction => {
         { name: 'Откат / спешик', value: interaction.fields.getTextInputValue('skills') }
       );
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`reject_${interaction.user.id}`).setLabel('❌ Отклонить').setStyle(ButtonStyle.Danger)
-    );
+    await channel.send({ embeds: [embed] });
 
-    await channel.send({ embeds: [embed], components: [row] });
-
-    return interaction.reply({ content: '✅ Заявка отправлена!', flags: MessageFlags.Ephemeral });
+    return interaction.reply({
+      content: '✅ Заявка отправлена!',
+      flags: MessageFlags.Ephemeral
+    });
   }
 
 
-  // принять
-  if (interaction.customId?.startsWith('accept_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-
-    const role1 = interaction.guild.roles.cache.find(r => r.name === ROLE_1);
-    const role2 = interaction.guild.roles.cache.find(r => r.name === ROLE_2);
-
-    if (role1) await member.roles.add(role1);
-    if (role2) await member.roles.add(role2);
-
-    await member.send('🎉 Ваша заявка принята!');
-    return interaction.update({ content: '✅ Принято', components: [] });
-  }
-
-
-  // ================= МАККОИНЫ =================
+  // =================================================
+  // МАККОИНЫ
+  // =================================================
 
   if (interaction.customId === "promo_menu") {
+
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("drop").setLabel("Дроп +3").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("arena").setLabel("Топ 1 +1").setStyle(ButtonStyle.Primary),
@@ -246,10 +229,12 @@ client.on('interactionCreate', async interaction => {
     return interaction.reply({ components: [row], flags: MessageFlags.Ephemeral });
   }
 
+
   if (interaction.customId === "promo_balance") {
     const coins = await db.get(`coins_${interaction.user.id}`) || 0;
     return interaction.reply({ content: `🪙 Баланс: **${coins} МакКоинов**`, flags: MessageFlags.Ephemeral });
   }
+
 
   const actions = {
     drop: [3, "Дроп"],
@@ -261,21 +246,32 @@ client.on('interactionCreate', async interaction => {
 
   if (actions[interaction.customId]) {
     const [amount, name] = actions[interaction.customId];
+
     await addCoins(interaction.user.id, amount, name, interaction.guild);
-    return interaction.reply({ content: `✅ +${amount} МакКоинов`, flags: MessageFlags.Ephemeral });
+
+    return interaction.reply({
+      content: `✅ +${amount} МакКоинов`,
+      flags: MessageFlags.Ephemeral
+    });
   }
 
-  if (interaction.customId?.startsWith("good_")) {
+
+  // кнопка "молодец"
+  if (interaction.customId.startsWith("good_")) {
     const id = interaction.customId.split("_")[1];
-    await addCoins(id, 2, "Скрин", interaction.guild);
+
+    await addCoins(id, 2, "Скрин/тайник", interaction.guild);
 
     const member = await interaction.guild.members.fetch(id);
     member.send("🔥 Молодец! Ты получил +2 МакКоина");
 
-    return interaction.reply({ content: "Начислено +2", flags: MessageFlags.Ephemeral });
+    return interaction.reply({
+      content: "Начислено +2",
+      flags: MessageFlags.Ephemeral
+    });
   }
 });
 
 
-// =================================================
+// ================= ЛОГИН =================
 client.login(process.env.BOT_TOKEN);

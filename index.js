@@ -32,7 +32,7 @@ const client = new Client({
 
 // ================= ЗАПУСК =================
 client.once('ready', () => {
-  console.log(✅ Бот запущен как ${client.user.tag});
+  console.log(`✅ Бот запущен как ${client.user.tag}`);
 });
 
 
@@ -102,7 +102,7 @@ client.on('interactionCreate', async interaction => {
       .setColor('DarkRed')
       .setTitle('📩 Новая заявка')
       .addFields(
-        { name: '👤 Пользователь', value: ${interaction.user} },
+        { name: '👤 Пользователь', value: `${interaction.user}` },
         { name: 'Ник', value: interaction.fields.getTextInputValue('nick') },
         { name: 'Онлайн', value: interaction.fields.getTextInputValue('online') },
         { name: 'Семьи', value: interaction.fields.getTextInputValue('fam') },
@@ -111,22 +111,22 @@ client.on('interactionCreate', async interaction => {
       );
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(watch_${interaction.user.id}).setLabel('👀 Смотрю').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(call_${interaction.user.id}).setLabel('📞 Обзвон').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(accept_${interaction.user.id}).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(reject_${interaction.user.id}).setLabel('❌ Отклонить').setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`watch_${interaction.user.id}`).setLabel('👀 Смотрю').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`call_${interaction.user.id}`).setLabel('📞 Обзвон').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`reject_${interaction.user.id}`).setLabel('❌ Отклонить').setStyle(ButtonStyle.Danger)
     );
 
     await channel.send({ embeds: [embed], components: [row] });
 
-    await interaction.reply({
+    return interaction.reply({
       content: '✅ Заявка отправлена!',
       flags: MessageFlags.Ephemeral
     });
   }
 
-Kenzo, [07.02.2026 4:40]
-// ===== СМОТРЮ =====
+
+  // ===== СМОТРЮ =====
   if (interaction.isButton() && interaction.customId.startsWith('watch_')) {
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
@@ -168,7 +168,7 @@ Kenzo, [07.02.2026 4:40]
     const id = interaction.customId.split('_')[1];
 
     const modal = new ModalBuilder()
-      .setCustomId(rejectReason_${id})
+      .setCustomId(`rejectReason_${id}`)
       .setTitle('Причина отказа');
 
     modal.addComponents(
@@ -191,13 +191,14 @@ Kenzo, [07.02.2026 4:40]
     const member = await interaction.guild.members.fetch(id);
     const reason = interaction.fields.getTextInputValue('reason');
 
-    await member.send(❌ Ваша заявка отклонена.\nПричина: ${reason});
+    await member.send(`❌ Ваша заявка отклонена.\nПричина: ${reason}`);
 
     return interaction.update({
-      content: ❌ Отклонено\nПричина: ${reason},
+      content: `❌ Отклонено\nПричина: ${reason}`,
       components: []
     });
   }
+
 });
 
 

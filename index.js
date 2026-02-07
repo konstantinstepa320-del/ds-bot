@@ -11,13 +11,56 @@ const {
   MessageFlags
 } = require('discord.js');
 
+const fs = require('fs');
+
 
 // ================= НАСТРОЙКИ =================
-const APPLY_CHANNEL_ID = "1469158146500198645";
+const TOKEN = process.env.TOKEN;
+
+const APPLY_CHANNEL_ID = "1469158146500198645"; // заявки
+const PROMO_CHANNEL_ID = "1464632454697455737"; // канал !повышение
+const LOG_CHANNEL_ID = "1469477344161959957"; // логи маккоинов
+
 const ROLE_1 = "DaSouza";
 const ROLE_2 = "Test";
+
+const ADMIN_ROLE_NAME = "Hight"; // только эта роль может выдавать
+
+const WARN_REMOVE_PRICE = 10;
+
 const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
+
+const COINS_FILE = "./coins.json";
 // ============================================
+
+
+
+// ================= ВАЛЮТА =================
+function loadCoins() {
+  if (!fs.existsSync(COINS_FILE)) fs.writeFileSync(COINS_FILE, '{}');
+  return JSON.parse(fs.readFileSync(COINS_FILE));
+}
+
+function saveCoins(data) {
+  fs.writeFileSync(COINS_FILE, JSON.stringify(data, null, 2));
+}
+
+function getCoins(id) {
+  const data = loadCoins();
+  return data[id] || 0;
+}
+
+function addCoins(id, amount) {
+  const data = loadCoins();
+  if (!data[id]) data[id] = 0;
+
+  data[id] += amount;
+  if (data[id] < 0) data[id] = 0;
+
+  saveCoins(data);
+}
+// ============================================
+
 
 
 const client = new Client({
@@ -30,154 +73,191 @@ const client = new Client({
 });
 
 
+
 // ================= ЗАПУСК =================
 client.once('ready', () => {
   console.log(`✅ Бот запущен как ${client.user.tag}`);
 });
 
 
-// ================= КОМАНДА !заявка =================
-client.on('messageCreate', async message => {
-  if (message.author.bot) return;
-  if (message.content !== '!заявка') return;
 
-  const embed = new EmbedBuilder()
-    .setColor('DarkRed')
-    .setImage(IMAGE_URL)
-    .setTitle('👋 Путь в семью начинается здесь!')
-    .setDescription(`
+// =================================================
+// ================== КОМАНДЫ ======================
+// =================================================
+client.on('messageCreate', async message => {
+
+  if (message.author.bot) return;
+
+
+
+  // ================= ЗАЯВКА =================
+  if (message.content === '!заявка') {
+
+    const embed = new EmbedBuilder()
+      .setColor('DarkRed')
+      .setImage(IMAGE_URL)
+      .setTitle('👋 Путь в семью начинается здесь!')
+      .setDescription(`
 • Все заявки отправляются администрации
 • Ответ обычно в течение 24 часов
 
 👇 Нажми кнопку ниже, чтобы подать заявку
 `);
 
-  const btn = new ButtonBuilder()
-    .setCustomId('apply')
-    .setLabel('Подать заявку')
-    .setStyle(ButtonStyle.Primary);
+    const btn = new ButtonBuilder()
+      .setCustomId('apply')
+      .setLabel('Подать заявку')
+      .setStyle(ButtonStyle.Primary);
 
-  await message.channel.send({
-    embeds: [embed],
-    components: [new ActionRowBuilder().addComponents(btn)]
-  });
+    return message.channel.send({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(btn)]
+    });
+  }
+
+
+
+  // ================= ПОВЫШЕНИЕ =================
+  if (message.content === '!повышение' && message.channel.id === PROMO_CHANNEL_ID) {
+
+    const embed = new EmbedBuilder()
+      .setColor('DarkRed')
+      .setTitle('💎 Система маккоинов')
+      .setImage(IMAGE_URL)
+      .setDescription(`
+🏆 **Начисления**
+• Капт — 3
+• Трасса — 2
+• МП — 2
+• Арена — 1
+• Тайник — 2
+`);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('coins_request').setLabel('💰 Получить').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('coins_balance').setLabel('📊 Баланс').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('coins_shop').setLabel('🛒 Магазин').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId('coins_add_admin').setLabel('➕ Выдать').setStyle(ButtonStyle.Danger)
+    );
+
+    return message.channel.send({ embeds: [embed], components: [row] });
+  }
+
 });
 
 
-// ================= ИНТЕРАКЦИИ =================
+
+// =================================================
+// ================= ИНТЕРАКЦИИ ====================
+// =================================================
 client.on('interactionCreate', async interaction => {
 
-  // ===== ОТКРЫТЬ МОДАЛКУ =====
-  if (interaction.isButton() && interaction.customId === 'apply') {
+  // ================= БАЛАНС =================
+  if (interaction.isButton() && interaction.customId === 'coins_balance') {
+    return interaction.reply({
+      content: `💰 У тебя **${getCoins(interaction.user.id)} маккоинов**`,
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+
+
+  // ================= ЗАПРОС КОИНОВ =================
+  if (interaction.isButton() && interaction.customId === 'coins_request') {
+
     const modal = new ModalBuilder()
-      .setCustomId('applyModal')
-      .setTitle('Заявка');
+      .setCustomId('coinsRequestModal')
+      .setTitle('Запрос маккоинов');
 
     const input = (id, label, style) =>
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId(id)
-          .setLabel(label)
-          .setStyle(style)
-          .setRequired(true)
+        new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(true)
       );
 
     modal.addComponents(
-      input('nick', 'Ник / Имя / Возраст', TextInputStyle.Short),
-      input('online', 'Суточный онлайн и уровень', TextInputStyle.Short),
-      input('fam', 'В каких семьях были?', TextInputStyle.Paragraph),
-      input('where', 'Как узнал о семье?', TextInputStyle.Short),
-      input('skills', 'Откат тяги / спешик', TextInputStyle.Paragraph)
+      input('type', 'Тип (капт/мп/трасса/арена/тайник)', TextInputStyle.Short),
+      input('count', 'Сколько раз', TextInputStyle.Short),
+      input('proof', 'Доказательства', TextInputStyle.Paragraph)
     );
 
     return interaction.showModal(modal);
   }
 
 
-  // ===== ОТПРАВКА ЗАЯВКИ =====
-  if (interaction.isModalSubmit() && interaction.customId === 'applyModal') {
-    const channel = await interaction.guild.channels.fetch(APPLY_CHANNEL_ID);
+
+  // ================= ОТПРАВКА В ЛОГ =================
+  if (interaction.isModalSubmit() && interaction.customId === 'coinsRequestModal') {
+
+    const prices = { капт:3, трасса:2, мп:2, арена:1, тайник:2 };
+
+    const type = interaction.fields.getTextInputValue('type').toLowerCase();
+    const count = parseInt(interaction.fields.getTextInputValue('count'));
+    const proof = interaction.fields.getTextInputValue('proof');
+
+    const total = (prices[type] || 0) * count;
+
+    const channel = await interaction.guild.channels.fetch(LOG_CHANNEL_ID);
 
     const embed = new EmbedBuilder()
       .setColor('DarkRed')
-      .setTitle('📩 Новая заявка')
+      .setTitle('📩 Запрос маккоинов')
       .addFields(
-        { name: '👤 Пользователь', value: `${interaction.user}` },
-        { name: 'Ник', value: interaction.fields.getTextInputValue('nick') },
-        { name: 'Онлайн', value: interaction.fields.getTextInputValue('online') },
-        { name: 'Семьи', value: interaction.fields.getTextInputValue('fam') },
-        { name: 'Откуда узнал', value: interaction.fields.getTextInputValue('where') },
-        { name: 'Откат / спешик', value: interaction.fields.getTextInputValue('skills') }
+        { name: 'Игрок', value: `${interaction.user}` },
+        { name: 'Тип', value: type },
+        { name: 'Кол-во', value: `${count}` },
+        { name: 'К выдаче', value: `${total}` },
+        { name: 'Доказательства', value: proof }
       );
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`watch_${interaction.user.id}`).setLabel('👀 Смотрю').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`call_${interaction.user.id}`).setLabel('📞 Обзвон').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`reject_${interaction.user.id}`).setLabel('❌ Отклонить').setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`approve_${interaction.user.id}_${total}`).setLabel('✅ Начислить').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`deny_${interaction.user.id}`).setLabel('❌ Отказать').setStyle(ButtonStyle.Danger)
     );
 
     await channel.send({ embeds: [embed], components: [row] });
 
-    await interaction.reply({
-      content: '✅ Заявка отправлена!',
-      flags: MessageFlags.Ephemeral
-    });
+    return interaction.reply({ content: '✅ Отправлено на проверку', flags: MessageFlags.Ephemeral });
   }
 
 
-  // ===== СМОТРЮ =====
-  if (interaction.isButton() && interaction.customId.startsWith('watch_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
 
-    await member.send('👀 Ваша заявка взята на рассмотрение!');
-    return interaction.reply({ content: '👀 Вы взяли заявку', flags: MessageFlags.Ephemeral });
+  // ================= ОДОБРИТЬ =================
+  if (interaction.isButton() && interaction.customId.startsWith('approve_')) {
+
+    const [_, id, amount] = interaction.customId.split('_');
+
+    addCoins(id, parseInt(amount));
+
+    return interaction.update({ content: `✅ Начислено ${amount}`, components: [] });
   }
 
 
-  // ===== ОБЗВОН =====
-  if (interaction.isButton() && interaction.customId.startsWith('call_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
 
-    await member.send('📞 Вас вызывают на обзвон! Зайдите в голосовой канал.');
-    return interaction.reply({ content: '📞 Пользователь вызван', flags: MessageFlags.Ephemeral });
+  // ================= ОТКАЗ =================
+  if (interaction.isButton() && interaction.customId.startsWith('deny_')) {
+    return interaction.update({ content: '❌ Отклонено', components: [] });
   }
 
 
-  // ===== ПРИНЯТЬ =====
-  if (interaction.isButton() && interaction.customId.startsWith('accept_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
 
-    const role1 = interaction.guild.roles.cache.find(r => r.name === ROLE_1);
-    const role2 = interaction.guild.roles.cache.find(r => r.name === ROLE_2);
+  // ================= ВЫДАЧА (ТОЛЬКО Hight) =================
+  if (interaction.isButton() && interaction.customId === 'coins_add_admin') {
 
-    if (role1) await member.roles.add(role1);
-    if (role2) await member.roles.add(role2);
+    const hasRole = interaction.member.roles.cache.some(r => r.name === ADMIN_ROLE_NAME);
 
-    await member.send('🎉 Поздравляем! Ваша заявка принята. Роли выданы.');
-
-    return interaction.update({ content: '✅ Принято', components: [] });
-  }
-
-
-  // ===== ОТКЛОНИТЬ =====
-  if (interaction.isButton() && interaction.customId.startsWith('reject_')) {
-    const id = interaction.customId.split('_')[1];
+    if (!hasRole)
+      return interaction.reply({ content: '❌ Только роль Hight может выдавать', flags: MessageFlags.Ephemeral });
 
     const modal = new ModalBuilder()
-      .setCustomId(`rejectReason_${id}`)
-      .setTitle('Причина отказа');
+      .setCustomId('addCoinsModal')
+      .setTitle('Выдать маккоины');
 
     modal.addComponents(
       new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('reason')
-          .setLabel('Укажите причину')
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
+        new TextInputBuilder().setCustomId('user').setLabel('ID').setStyle(TextInputStyle.Short).setRequired(true)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('amount').setLabel('Количество').setStyle(TextInputStyle.Short).setRequired(true)
       )
     );
 
@@ -185,21 +265,19 @@ client.on('interactionCreate', async interaction => {
   }
 
 
-  // ===== ПРИЧИНА =====
-  if (interaction.isModalSubmit() && interaction.customId.startsWith('rejectReason_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-    const reason = interaction.fields.getTextInputValue('reason');
 
-    await member.send(`❌ Ваша заявка отклонена.\nПричина: ${reason}`);
+  if (interaction.isModalSubmit() && interaction.customId === 'addCoinsModal') {
 
-    return interaction.update({
-      content: `❌ Отклонено\nПричина: ${reason}`,
-      components: []
-    });
+    addCoins(
+      interaction.fields.getTextInputValue('user'),
+      parseInt(interaction.fields.getTextInputValue('amount'))
+    );
+
+    return interaction.reply({ content: '✅ Выдано', flags: MessageFlags.Ephemeral });
   }
+
 });
 
 
-// ================= ЛОГИН =================
-client.login(process.env.TOKEN);
+
+client.login(TOKEN);

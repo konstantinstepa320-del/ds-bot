@@ -11,16 +11,26 @@ const {
   MessageFlags
 } = require('discord.js');
 
+const { QuickDB } = require("quick.db");
+const db = new QuickDB();
+
 
 // ================= НАСТРОЙКИ =================
+
+// заявки
 const APPLY_CHANNEL_ID = "1469158146500198645";
 const ROLE_1 = "DaSouza";
 const ROLE_2 = "Test";
 
+// маккоины
+const PROMO_CHANNEL = "1464632454697455737";
+const BALANCE_CHANNEL = "1469478344772026409";
+const SCREEN_CHANNEL = "1469477344161959957";
+
 const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
-// ============================================
 
 
+// ================= КЛИЕНТ =================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -31,44 +41,126 @@ const client = new Client({
 });
 
 
-// ================= ЗАПУСК =================
-client.once('ready', () => {
+// =================================================
+// READY (ОДИН ОБЩИЙ)
+// =================================================
+client.once('ready', async () => {
   console.log(`✅ Бот запущен как ${client.user.tag}`);
+  await sendPromoPanel();
 });
 
 
-// ================= КОМАНДА !заявка =================
-client.on('messageCreate', async message => {
-  if (message.author.bot) return;
-  if (message.content !== '!заявка') return;
+// =================================================
+// ФУНКЦИИ
+// =================================================
+
+// отправка панели повышения
+async function sendPromoPanel() {
+  const channel = await client.channels.fetch(PROMO_CHANNEL);
+
+  await channel.bulkDelete(20).catch(() => {}); // очистка старых
 
   const embed = new EmbedBuilder()
     .setColor('DarkRed')
     .setImage(IMAGE_URL)
-    .setTitle('👋 Путь в семью начинается здесь!')
+    .setTitle('🪙 Система повышения')
     .setDescription(
+`Зарабатывай **МакКоины**
+
+Дроп — 3  
+Топ 1 арены — 1  
+МП — 4  
+Капт — 4  
+Трасса — 2`
+    );
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("promo_menu")
+      .setLabel("📋 Открыть меню")
+      .setStyle(ButtonStyle.Primary),
+
+    new ButtonBuilder()
+      .setCustomId("promo_balance")
+      .setLabel("🪙 Мой баланс")
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  await channel.send({ embeds: [embed], components: [row] });
+}
+
+
+// начисление монет
+async function addCoins(userId, amount, reason, guild) {
+  await db.add(`coins_${userId}`, amount);
+
+  const log = await guild.channels.fetch(BALANCE_CHANNEL);
+
+  const embed = new EmbedBuilder()
+    .setColor("DarkRed")
+    .setDescription(`💰 <@${userId}> получил **${amount} МакКоин(ов)**\nПричина: ${reason}`);
+
+  log.send({ embeds: [embed] });
+}
+
+
+// =================================================
+// MESSAGE CREATE
+// =================================================
+client.on('messageCreate', async message => {
+  if (message.author.bot) return;
+
+  // ===== !заявка =====
+  if (message.content === '!заявка') {
+    const embed = new EmbedBuilder()
+      .setColor('DarkRed')
+      .setImage(IMAGE_URL)
+      .setTitle('👋 Путь в семью начинается здесь!')
+      .setDescription(
 `• Все заявки отправляются администрации
 • Ответ обычно в течение 24 часов
 
 👇 Нажми кнопку ниже, чтобы подать заявку`
+      );
+
+    const btn = new ButtonBuilder()
+      .setCustomId('apply')
+      .setLabel('Подать заявку')
+      .setStyle(ButtonStyle.Primary);
+
+    return message.channel.send({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(btn)]
+    });
+  }
+
+
+  // ===== !панель (ручное создание) =====
+  if (message.content === '!панель') {
+    return sendPromoPanel();
+  }
+
+
+  // ===== кнопка под скринами =====
+  if (message.channel.id === SCREEN_CHANNEL) {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`good_${message.author.id}`)
+        .setLabel("👍 Молодец +2")
+        .setStyle(ButtonStyle.Success)
     );
 
-  const btn = new ButtonBuilder()
-    .setCustomId('apply')
-    .setLabel('Подать заявку')
-    .setStyle(ButtonStyle.Primary);
-
-  await message.channel.send({
-    embeds: [embed],
-    components: [new ActionRowBuilder().addComponents(btn)]
-  });
+    message.channel.send({ components: [row] });
+  }
 });
 
 
-// ================= ИНТЕРАКЦИИ =================
+// =================================================
+// INTERACTIONS
+// =================================================
 client.on('interactionCreate', async interaction => {
 
-  // ===== ОТКРЫТЬ МОДАЛКУ =====
+  // ================= ЗАЯВКА =================
   if (interaction.isButton() && interaction.customId === 'apply') {
 
     const modal = new ModalBuilder()
@@ -96,7 +188,7 @@ client.on('interactionCreate', async interaction => {
   }
 
 
-  // ===== ОТПРАВКА ЗАЯВКИ =====
+  // отправка заявки
   if (interaction.isModalSubmit() && interaction.customId === 'applyModal') {
 
     const channel = await interaction.guild.channels.fetch(APPLY_CHANNEL_ID);
@@ -114,51 +206,18 @@ client.on('interactionCreate', async interaction => {
       );
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`watch_${interaction.user.id}`).setLabel('👀 Смотрю').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`call_${interaction.user.id}`).setLabel('📞 Обзвон').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`accept_${interaction.user.id}`).setLabel('✅ Принять').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`reject_${interaction.user.id}`).setLabel('❌ Отклонить').setStyle(ButtonStyle.Danger)
     );
 
     await channel.send({ embeds: [embed], components: [row] });
 
-    await interaction.reply({
-      content: '✅ Заявка отправлена!',
-      flags: MessageFlags.Ephemeral
-    });
+    return interaction.reply({ content: '✅ Заявка отправлена!', flags: MessageFlags.Ephemeral });
   }
 
 
-  // ===== СМОТРЮ =====
-  if (interaction.isButton() && interaction.customId.startsWith('watch_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-
-    await member.send('👀 Ваша заявка взята на рассмотрение!');
-
-    return interaction.reply({
-      content: '👀 Вы взяли заявку',
-      flags: MessageFlags.Ephemeral
-    });
-  }
-
-
-  // ===== ОБЗВОН =====
-  if (interaction.isButton() && interaction.customId.startsWith('call_')) {
-    const id = interaction.customId.split('_')[1];
-    const member = await interaction.guild.members.fetch(id);
-
-    await member.send('📞 Вас вызывают на обзвон! Зайдите в голосовой канал.');
-
-    return interaction.reply({
-      content: '📞 Пользователь вызван',
-      flags: MessageFlags.Ephemeral
-    });
-  }
-
-
-  // ===== ПРИНЯТЬ =====
-  if (interaction.isButton() && interaction.customId.startsWith('accept_')) {
+  // принять
+  if (interaction.customId?.startsWith('accept_')) {
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
 
@@ -168,50 +227,55 @@ client.on('interactionCreate', async interaction => {
     if (role1) await member.roles.add(role1);
     if (role2) await member.roles.add(role2);
 
-    await member.send('🎉 Поздравляем! Ваша заявка принята. Роли выданы.');
-
+    await member.send('🎉 Ваша заявка принята!');
     return interaction.update({ content: '✅ Принято', components: [] });
   }
 
 
-  // ===== ОТКЛОНИТЬ =====
-  if (interaction.isButton() && interaction.customId.startsWith('reject_')) {
+  // ================= МАККОИНЫ =================
 
-    const modal = new ModalBuilder()
-      .setCustomId(`rejectReason_${interaction.customId.split('_')[1]}`)
-      .setTitle('Причина отказа');
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('reason')
-          .setLabel('Укажите причину')
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
-      )
+  if (interaction.customId === "promo_menu") {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("drop").setLabel("Дроп +3").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("arena").setLabel("Топ 1 +1").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("mp").setLabel("МП +4").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("capt").setLabel("Капт +4").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("race").setLabel("Трасса +2").setStyle(ButtonStyle.Primary)
     );
 
-    return interaction.showModal(modal);
+    return interaction.reply({ components: [row], flags: MessageFlags.Ephemeral });
   }
 
+  if (interaction.customId === "promo_balance") {
+    const coins = await db.get(`coins_${interaction.user.id}`) || 0;
+    return interaction.reply({ content: `🪙 Баланс: **${coins} МакКоинов**`, flags: MessageFlags.Ephemeral });
+  }
 
-  // ===== ОТПРАВКА ПРИЧИНЫ =====
-  if (interaction.isModalSubmit() && interaction.customId.startsWith('rejectReason_')) {
+  const actions = {
+    drop: [3, "Дроп"],
+    arena: [1, "Топ 1"],
+    mp: [4, "МП"],
+    capt: [4, "Капт"],
+    race: [2, "Трасса"]
+  };
 
-    const id = interaction.customId.split('_')[1];
+  if (actions[interaction.customId]) {
+    const [amount, name] = actions[interaction.customId];
+    await addCoins(interaction.user.id, amount, name, interaction.guild);
+    return interaction.reply({ content: `✅ +${amount} МакКоинов`, flags: MessageFlags.Ephemeral });
+  }
+
+  if (interaction.customId?.startsWith("good_")) {
+    const id = interaction.customId.split("_")[1];
+    await addCoins(id, 2, "Скрин", interaction.guild);
+
     const member = await interaction.guild.members.fetch(id);
-    const reason = interaction.fields.getTextInputValue('reason');
+    member.send("🔥 Молодец! Ты получил +2 МакКоина");
 
-    await member.send(`❌ Ваша заявка отклонена.\nПричина: ${reason}`);
-
-    return interaction.update({
-      content: `❌ Отклонено\nПричина: ${reason}`,
-      components: []
-    });
+    return interaction.reply({ content: "Начислено +2", flags: MessageFlags.Ephemeral });
   }
-
 });
 
 
-// ================= ЛОГИН =================
+// =================================================
 client.login(process.env.BOT_TOKEN);

@@ -15,9 +15,8 @@ const fs = require('fs');
 
 
 // ================= НАСТРОЙКИ =================
-const APPLY_CHANNEL_ID = "1469158146500198645";
-const LOG_CHANNEL_ID = "1469477344161959957";
-
+const APPLY_CHANNEL_ID = "1469158146500198645"; // заявки
+const LOG_CHANNEL_ID = "1469477344161959957";   // логи/баллы
 const ROLE_1 = "DaSouza";
 const ROLE_2 = "Test";
 const ADMIN_ROLE = "Hight";
@@ -33,18 +32,16 @@ const DB = "./coins.json";
 if (!fs.existsSync(DB)) fs.writeFileSync(DB, "{}");
 
 const read = () => JSON.parse(fs.readFileSync(DB));
-const save = (d) => fs.writeFileSync(DB, JSON.stringify(d, null, 2));
+const save = d => fs.writeFileSync(DB, JSON.stringify(d, null, 2));
 
-function coins(id) {
-  return read()[id] || 0;
-}
+const getCoins = id => read()[id] || 0;
 
-function addCoins(id, amount) {
+const addCoins = (id, amount) => {
   const d = read();
   d[id] = (d[id] || 0) + amount;
   save(d);
-}
-// =========================================
+};
+// ========================================
 
 
 const client = new Client({
@@ -55,6 +52,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers
   ]
 });
+
 
 client.once('ready', () => {
   console.log(`✅ Бот запущен как ${client.user.tag}`);
@@ -67,13 +65,12 @@ client.once('ready', () => {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-
-  // ===== !заявка =====
+  // ===== ЗАЯВКА =====
   if (message.content === '!заявка') {
 
     const embed = new EmbedBuilder()
       .setColor('DarkRed')
-      .setImage(IMAGE_URL)
+      .setImage(IMAGE_URL) // <<< ФОТО ДОБАВЛЕНО
       .setTitle('👋 Путь в семью начинается здесь!')
       .setDescription('Нажми кнопку ниже, чтобы подать заявку');
 
@@ -89,7 +86,7 @@ client.on('messageCreate', async message => {
   }
 
 
-  // ===== !повышение =====
+  // ===== СИСТЕМА БАЛЛОВ =====
   if (message.content === '!повышение') {
 
     const row = new ActionRowBuilder().addComponents(
@@ -100,7 +97,7 @@ client.on('messageCreate', async message => {
     );
 
     message.channel.send({
-      content: "Система баллов",
+      content: 'Система баллов',
       components: [row]
     });
   }
@@ -113,9 +110,10 @@ client.on('messageCreate', async message => {
 client.on('interactionCreate', async interaction => {
 
   // =================================================
-  // ================= ЗАЯВКИ ========================
+  // ================= ЗАЯВКА ========================
   // =================================================
 
+  // Открыть модалку
   if (interaction.isButton() && interaction.customId === 'apply') {
 
     const modal = new ModalBuilder()
@@ -143,13 +141,14 @@ client.on('interactionCreate', async interaction => {
   }
 
 
-  // ===== отправка заявки =====
+  // Отправка заявки
   if (interaction.isModalSubmit() && interaction.customId === 'applyModal') {
 
     const channel = await interaction.guild.channels.fetch(APPLY_CHANNEL_ID);
 
     const embed = new EmbedBuilder()
       .setColor('DarkRed')
+      .setImage(IMAGE_URL) // <<< ФОТО ТУТ ТОЖЕ
       .setTitle('📩 Новая заявка')
       .addFields(
         { name: '👤 Пользователь', value: `${interaction.user}` },
@@ -173,30 +172,43 @@ client.on('interactionCreate', async interaction => {
   }
 
 
+  // Принять заявку
+  if (interaction.isButton() && interaction.customId.startsWith('accept_')) {
+
+    const id = interaction.customId.split('_')[1];
+    const member = await interaction.guild.members.fetch(id);
+
+    const role1 = interaction.guild.roles.cache.find(r => r.name === ROLE_1);
+    const role2 = interaction.guild.roles.cache.find(r => r.name === ROLE_2);
+
+    if (role1) await member.roles.add(role1);
+    if (role2) await member.roles.add(role2);
+
+    addCoins(id, 3); // авто 3 балла
+
+    await member.send(`🎉 Заявка принята! Вам начислено 3 балла`);
+
+    return interaction.update({ content: '✅ Принято +3 балла', components: [] });
+  }
+
+
   // =================================================
   // ================= БАЛЛЫ =========================
   // =================================================
 
   if (interaction.isButton() && interaction.customId === 'balance') {
-    return interaction.reply({ content: `Баланс: ${coins(interaction.user.id)}`, flags: MessageFlags.Ephemeral });
-  }
-
-  if (interaction.isButton() && interaction.customId === 'shop') {
-
-    if (coins(interaction.user.id) < WARN_PRICE)
-      return interaction.reply({ content: 'Недостаточно баллов', flags: MessageFlags.Ephemeral });
-
-    addCoins(interaction.user.id, -WARN_PRICE);
-
-    return interaction.reply({ content: 'Варн снят!', flags: MessageFlags.Ephemeral });
+    return interaction.reply({
+      content: `Ваш баланс: ${getCoins(interaction.user.id)}`,
+      flags: MessageFlags.Ephemeral
+    });
   }
 
 
-  // ===== ВЫДАТЬ (ТОЛЬКО Hight) =====
+  // Только Hight может выдавать
   if (interaction.isButton() && interaction.customId === 'give') {
 
     if (!interaction.member.roles.cache.some(r => r.name === ADMIN_ROLE))
-      return interaction.reply({ content: 'Нет доступа', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ Нет доступа', flags: MessageFlags.Ephemeral });
 
     const modal = new ModalBuilder()
       .setCustomId('giveModal')
@@ -222,9 +234,11 @@ client.on('interactionCreate', async interaction => {
 
     addCoins(id, amount);
 
-    return interaction.reply({ content: `Выдано ${amount} баллов`, flags: MessageFlags.Ephemeral });
+    return interaction.reply({
+      content: `✅ Выдано ${amount} баллов`,
+      flags: MessageFlags.Ephemeral
+    });
   }
-
 });
 
 client.login(process.env.TOKEN);

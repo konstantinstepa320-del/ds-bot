@@ -13,10 +13,18 @@ const {
 
 
 // ================= НАСТРОЙКИ =================
-const APPLY_CHANNEL_ID = "1469158146500198645";
-const ROLE_1 = "DaSouza";
-const ROLE_2 = "Test";
+
+/* канал где пишут !заявка */
+const COMMAND_CHANNEL_ID = "1480220429988659251";
+
+/* канал куда приходят заявки */
+const APPLY_CHANNEL_ID = "1480227101905785113";
+
+/* роль при принятии */
+const ROLE_1 = "1479557914086740104";
+
 const IMAGE_URL = "https://cdn.discordapp.com/attachments/737990746086441041/1469395625849257994/3330ded1-da51-47f9-a7d7-dee6d1bdc918.png";
+
 // ============================================
 
 
@@ -31,15 +39,22 @@ const client = new Client({
 
 
 // ================= ЗАПУСК =================
+
 client.once('ready', () => {
   console.log(`✅ Бот запущен как ${client.user.tag}`);
 });
 
 
 // ================= КОМАНДА !заявка =================
+
 client.on('messageCreate', async message => {
+
   if (message.author.bot) return;
+
+  if (message.channel.id !== COMMAND_CHANNEL_ID) return;
+
   if (message.content !== '!заявка') return;
+
 
   const embed = new EmbedBuilder()
     .setColor('DarkRed')
@@ -61,14 +76,17 @@ client.on('messageCreate', async message => {
     embeds: [embed],
     components: [new ActionRowBuilder().addComponents(btn)]
   });
+
 });
 
 
 // ================= ИНТЕРАКЦИИ =================
+
 client.on('interactionCreate', async interaction => {
 
   // ===== ОТКРЫТЬ МОДАЛКУ =====
   if (interaction.isButton() && interaction.customId === 'apply') {
+
     const modal = new ModalBuilder()
       .setCustomId('applyModal')
       .setTitle('Заявка');
@@ -91,11 +109,13 @@ client.on('interactionCreate', async interaction => {
     );
 
     return interaction.showModal(modal);
+
   }
 
 
   // ===== ОТПРАВКА ЗАЯВКИ =====
   if (interaction.isModalSubmit() && interaction.customId === 'applyModal') {
+
     const channel = await interaction.guild.channels.fetch(APPLY_CHANNEL_ID);
 
     const embed = new EmbedBuilder()
@@ -123,48 +143,65 @@ client.on('interactionCreate', async interaction => {
       content: '✅ Заявка отправлена!',
       flags: MessageFlags.Ephemeral
     });
+
   }
 
 
   // ===== СМОТРЮ =====
   if (interaction.isButton() && interaction.customId.startsWith('watch_')) {
+
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
 
     await member.send('👀 Ваша заявка взята на рассмотрение!');
-    return interaction.reply({ content: '👀 Вы взяли заявку', flags: MessageFlags.Ephemeral });
+
+    return interaction.reply({
+      content: '👀 Вы взяли заявку',
+      flags: MessageFlags.Ephemeral
+    });
+
   }
 
 
   // ===== ОБЗВОН =====
   if (interaction.isButton() && interaction.customId.startsWith('call_')) {
+
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
 
     await member.send('📞 Вас вызывают на обзвон! Зайдите в голосовой канал.');
-    return interaction.reply({ content: '📞 Пользователь вызван', flags: MessageFlags.Ephemeral });
+
+    return interaction.reply({
+      content: '📞 Пользователь вызван',
+      flags: MessageFlags.Ephemeral
+    });
+
   }
 
 
   // ===== ПРИНЯТЬ =====
   if (interaction.isButton() && interaction.customId.startsWith('accept_')) {
+
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
 
-    const role1 = interaction.guild.roles.cache.find(r => r.name === ROLE_1);
-    const role2 = interaction.guild.roles.cache.find(r => r.name === ROLE_2);
+    const role = interaction.guild.roles.cache.get(ROLE_1);
 
-    if (role1) await member.roles.add(role1);
-    if (role2) await member.roles.add(role2);
+    if (role) await member.roles.add(role);
 
-    await member.send('🎉 Поздравляем! Ваша заявка принята. Роли выданы.');
+    await member.send('🎉 Поздравляем! Ваша заявка принята. Роль выдана.');
 
-    return interaction.update({ content: '✅ Принято', components: [] });
+    return interaction.update({
+      content: '✅ Принято',
+      components: []
+    });
+
   }
 
 
   // ===== ОТКЛОНИТЬ =====
   if (interaction.isButton() && interaction.customId.startsWith('reject_')) {
+
     const id = interaction.customId.split('_')[1];
 
     const modal = new ModalBuilder()
@@ -182,11 +219,13 @@ client.on('interactionCreate', async interaction => {
     );
 
     return interaction.showModal(modal);
+
   }
 
 
   // ===== ПРИЧИНА =====
   if (interaction.isModalSubmit() && interaction.customId.startsWith('rejectReason_')) {
+
     const id = interaction.customId.split('_')[1];
     const member = await interaction.guild.members.fetch(id);
     const reason = interaction.fields.getTextInputValue('reason');
@@ -197,10 +236,12 @@ client.on('interactionCreate', async interaction => {
       content: `❌ Отклонено\nПричина: ${reason}`,
       components: []
     });
+
   }
 
 });
 
 
 // ================= ЛОГИН =================
+
 client.login(process.env.TOKEN);
